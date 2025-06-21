@@ -52,6 +52,13 @@ repositories {
             password = project.user_github_token ?: project.repository_token ?: project.organization_token
         }
     }
+    maven {
+        url = uri("https://maven.pkg.github.com/MCEngine/currency-api")
+        credentials {
+            username = project.user_git_name
+            password = project.user_github_token ?: project.repository_token ?: project.organization_token
+        }
+    }
 }
 
 dependencies {
