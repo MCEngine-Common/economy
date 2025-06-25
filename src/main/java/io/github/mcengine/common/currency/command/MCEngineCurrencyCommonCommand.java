@@ -1,6 +1,6 @@
 package io.github.mcengine.common.currency.command;
 
-import io.github.mcengine.api.currency.MCEngineCurrencyApi;
+import io.github.mcengine.common.currency.MCEngineCurrencyCommon;
 import io.github.mcengine.api.mcengine.MCEngineApi;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -15,14 +15,14 @@ import org.bukkit.entity.Player;
  */
 public class MCEngineCurrencyCommonCommand implements CommandExecutor {
 
-    private final MCEngineCurrencyApi currencyApi;
+    private final MCEngineCurrencyCommon currencyApi;
 
     /**
      * Constructs the command executor with a reference to the currency API.
      *
      * @param currencyApi The currency API instance.
      */
-    public MCEngineCurrencyCommonCommand(MCEngineCurrencyApi currencyApi) {
+    public MCEngineCurrencyCommonCommand(MCEngineCurrencyCommon currencyApi) {
         this.currencyApi = currencyApi;
     }
 
