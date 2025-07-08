@@ -1,7 +1,7 @@
 package io.github.mcengine.common.currency.command;
 
 import io.github.mcengine.common.currency.MCEngineCurrencyCommon;
-import io.github.mcengine.api.mcengine.MCEngineApi;
+import io.github.mcengine.api.core.MCEngineApi;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
