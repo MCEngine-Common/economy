@@ -4,7 +4,7 @@ plugins {
     id 'maven-publish'
 }
 
-// Set project version using a property, defaulting to 'undefined' if not found
+// Set project version using a property
 version = project.properties[project.name + '.version']
 group = 'io.github.mcengine'
 
@@ -67,8 +67,8 @@ dependencies {
     compileOnly 'com.google.code.gson:gson:2.13.1'
     compileOnly 'org.mongodb:mongodb-driver-sync:5.5.1'
 
-    compileOnly 'io.github.mcengine:core-api:1.0.6-RELEASE'
-    compileOnly 'io.github.mcengine:currency-api:1.0.4-RELEASE'
+    compileOnly 'io.github.mcengine:core-api:2025.0.8-16'
+    compileOnly 'io.github.mcengine:currency-api:2025.0.8-16'
 }
 
 shadowJar {
