@@ -7,7 +7,7 @@ on:
 
 jobs:
   publish:
-    uses: MCEngine/actions/.github/workflows/publish-gradle.yml@master
+    uses: MCEngine/actions/.github/workflows/gradle/publish.yml@master
     with:
       repo-name: ${{ github.repository }}
     secrets:
