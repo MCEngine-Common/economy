@@ -14,11 +14,13 @@ ext {
     user_github_token = System.getenv('USER_GITHUB_TOKEN')
 
     // Organization
-    organization_name = System.getenv('ORGANIZATION_NAME') ?: 'MCEngine'
+    organization_id = System.getenv('ORGANIZATION_ID')
+    organization_name = System.getenv('ORGANIZATION_NAME') ?: 'MCEngine-Common'
     organization_token = System.getenv('ORGANIZATION_TOKEN')
 
     // Repository
-    repository_name = System.getenv('REPOSITORY_NAME') ?: 'currency-common'
+    repository_id = System.getenv('REPOSITORY_ID')
+    repository_name = System.getenv('REPOSITORY_NAME') ?: 'currency'
     repository_token = System.getenv('REPOSITORY_TOKEN')
 
     // Project Information
