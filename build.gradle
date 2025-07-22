@@ -70,7 +70,7 @@ dependencies {
     compileOnly 'org.mongodb:mongodb-driver-sync:5.5.1'
 
     compileOnly 'io.github.mcengine:core-api:2025.0.7-22'
-    compileOnly 'io.github.mcengine:currency-api:2025.0.7-22'
+    compileOnly 'io.github.mcengine:currency-api:2025.0.7-22-1'
 }
 
 shadowJar {
