@@ -47,20 +47,19 @@ repositories {
     maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
     maven { url = 'https://oss.sonatype.org/content/repositories/central' }
 
-    maven {
-        url = uri("https://maven.pkg.github.com/MCEngine-API/core")
-        credentials {
-            username = project.user_git_name
-            password = project.user_github_token ?: project.repository_token ?: project.organization_token
+    ext.configureGitHubRepo = { repoName, repoUrl ->
+        maven {
+            name = repoName
+            url = uri(repoUrl)
+            credentials {
+                username = project.user_git_name
+                password = project.user_github_token ?: project.repository_token ?: project.organization_token
+            }
         }
     }
-    maven {
-        url = uri("https://maven.pkg.github.com/MCEngine-API/currency")
-        credentials {
-            username = project.user_git_name
-            password = project.user_github_token ?: project.repository_token ?: project.organization_token
-        }
-    }
+
+    configureGitHubRepo('MCEngine Core API', 'https://maven.pkg.github.com/MCEngine-API/core')
+    configureGitHubRepo('MCEngine Currency API', 'https://maven.pkg.github.com/MCEngine-API/currency')
 }
 
 dependencies {
