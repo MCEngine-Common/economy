@@ -7,28 +7,28 @@ on:
 
 jobs:
   version-update:
-    uses: MCEngine/actions/.github/workflows/bump-project-version.yml@master
+    uses: MCEngine-Action/gradle/.github/workflows/bump-project-version.yml@master
     with:
       repo-name: ${{ github.repository }}
     secrets:
       USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
   deps-update-for-mcengine:
     needs: version-update
-    uses: MCEngine/actions/.github/workflows/bump-mcengine-deps-version.yml@master
+    uses: MCEngine-Action/gradle/.github/workflows/bump-mcengine-deps-version.yml@master
     with:
       repo-name: ${{ github.repository }}
     secrets:
       USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
   publish:
     needs: deps-update-for-mcengine
-    uses: MCEngine/actions/.github/workflows/publish-gradle.yml@master
+    uses: MCEngine-Action/gradle/.github/workflows/publish-gradle.yml@master
     with:
       repo-name: ${{ github.repository }}
     secrets:
       USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
   version-update-for-dev:
     needs: publish
-    uses: MCEngine/actions/.github/workflows/bump-project-version-for-dev.yml@master
+    uses: MCEngine-Action/gradle/.github/workflows/bump-project-version-for-dev.yml@master
     with:
       repo-name: ${{ github.repository }}
     secrets:
