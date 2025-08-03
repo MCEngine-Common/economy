@@ -1,7 +1,7 @@
 package io.github.mcengine.common.currency.command;
 
 import io.github.mcengine.common.currency.MCEngineCurrencyCommon;
-import io.github.mcengine.api.core.MCEngineApi;
+import io.github.mcengine.api.core.MCEngineCoreApi;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
@@ -42,7 +42,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
         if (args.length == 2 && ("addon".equalsIgnoreCase(args[0]) || "dlc".equalsIgnoreCase(args[0]))
                 && "list".equalsIgnoreCase(args[1])) {
             if (sender instanceof Player player) {
-                return MCEngineApi.handleExtensionList(player, currencyApi.getPlugin(), args[0]);
+                return MCEngineCoreApi.handleExtensionList(player, currencyApi.getPlugin(), args[0]);
             } else {
                 sender.sendMessage(ChatColor.RED + "Only players can run this command.");
                 return true;
