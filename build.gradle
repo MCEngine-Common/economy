@@ -68,7 +68,7 @@ dependencies {
     compileOnly 'com.google.code.gson:gson:2.13.1'
     compileOnly 'org.mongodb:mongodb-driver-sync:5.5.1'
 
-    compileOnly 'io.github.mcengine:core-api:2025.0.8-6'
+    compileOnly 'io.github.mcengine:core-api:2025.0.8-6-1-dispatcher'
     compileOnly 'io.github.mcengine:currency-api:2025.0.8-6'
 }
 
