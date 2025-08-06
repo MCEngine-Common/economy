@@ -11,10 +11,13 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 /**
- * Handles the /currency command with subcommands for checking and adding player balances.
+ * Handles the /currency default command with subcommands for checking and adding player balances.
  */
 public class MCEngineCurrencyCommonCommand implements CommandExecutor {
 
+    /**
+     * The currency API instance used for managing player balances.
+     */
     private final MCEngineCurrencyCommon currencyApi;
 
     /**
@@ -27,7 +30,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
     }
 
     /**
-     * Executes the /currency command and its subcommands.
+     * Executes the /currency default command and its subcommands.
      *
      * @param sender  The source of the command.
      * @param command The command object.
@@ -39,10 +42,10 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 
         // /currency addon list or /currency dlc list
-        if (args.length == 2 && ("addon".equalsIgnoreCase(args[0]) || "dlc".equalsIgnoreCase(args[0]))
-                && "list".equalsIgnoreCase(args[1])) {
+        if (args.length == 3 && ("addon".equalsIgnoreCase(args[1]) || "dlc".equalsIgnoreCase(args[1]))
+                && "list".equalsIgnoreCase(args[2])) {
             if (sender instanceof Player player) {
-                return MCEngineCoreApi.handleExtensionList(player, currencyApi.getPlugin(), args[0]);
+                return MCEngineCoreApi.handleExtensionList(player, currencyApi.getPlugin(), args[1]);
             } else {
                 sender.sendMessage(ChatColor.RED + "Only players can run this command.");
                 return true;
@@ -50,8 +53,8 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
         }
 
         // Player checking their own balance
-        if (args.length == 2 && args[0].equalsIgnoreCase("check") && sender instanceof Player player) {
-            String coinType = args[1].toLowerCase();
+        if (args.length == 3 && args[1].equalsIgnoreCase("check") && sender instanceof Player player) {
+            String coinType = args[2].toLowerCase();
             if (!isValidCoinType(coinType)) {
                 player.sendMessage(ChatColor.RED + "Invalid coin type. Use coin, copper, silver, or gold.");
                 return true;
@@ -67,14 +70,14 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
         }
 
         // Admin checking another player's balance
-        if (args.length == 3 && args[0].equalsIgnoreCase("check")) {
+        if (args.length == 4 && args[1].equalsIgnoreCase("check")) {
             if (!sender.hasPermission("mcengine.currency.check.player")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to do that.");
                 return true;
             }
 
             OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-            String coinType = args[2].toLowerCase();
+            String coinType = args[3].toLowerCase();
             if (!isValidCoinType(coinType)) {
                 sender.sendMessage(ChatColor.RED + "Invalid coin type.");
                 return true;
@@ -90,15 +93,15 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
         }
 
         // Admin adding coins
-        if (args.length == 4 && args[0].equalsIgnoreCase("add")) {
+        if (args.length == 5 && args[1].equalsIgnoreCase("add")) {
             if (!sender.hasPermission("mcengine.currency.add")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to do that.");
                 return true;
             }
 
-            OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-            String coinType = args[2].toLowerCase();
-            String amountStr = args[3];
+            OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
+            String coinType = args[3].toLowerCase();
+            String amountStr = args[4];
 
             if (!isValidCoinType(coinType)) {
                 sender.sendMessage(ChatColor.RED + "Invalid coin type.");
@@ -122,12 +125,12 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             return true;
         }
 
-        sender.sendMessage(ChatColor.YELLOW + "Usage:");
-        sender.sendMessage(ChatColor.YELLOW + "/currency check <coinType>");
-        sender.sendMessage(ChatColor.YELLOW + "/currency check <player> <coinType> (OP)");
-        sender.sendMessage(ChatColor.YELLOW + "/currency add <player> <coinType> <amount> (OP)");
-        sender.sendMessage(ChatColor.YELLOW + "/currency addon list");
-        sender.sendMessage(ChatColor.YELLOW + "/currency dlc list");
+        sender.sendMessage(ChatColor.RED + "Usage:");
+        sender.sendMessage(ChatColor.GRAY + "/currency default check <coinType>");
+        sender.sendMessage(ChatColor.GRAY + "/currency default check <player> <coinType> (OP)");
+        sender.sendMessage(ChatColor.GRAY + "/currency default add <player> <coinType> <amount> (OP)");
+        sender.sendMessage(ChatColor.GRAY + "/currency default addon list");
+        sender.sendMessage(ChatColor.GRAY + "/currency default dlc list");
         return true;
     }
 
