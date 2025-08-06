@@ -2,9 +2,12 @@ package io.github.mcengine.common.currency;
 
 import java.sql.Connection;
 import java.util.UUID;
+import io.github.mcengine.api.core.util.MCEngineCoreApiDispatcher;
 import io.github.mcengine.api.currency.database.MCEngineCurrencyApiDBInterface;
 import io.github.mcengine.common.currency.database.mysql.MCEngineCurrencyMySQL;
 import io.github.mcengine.common.currency.database.sqlite.MCEngineCurrencySQLite;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.plugin.Plugin;
 
 /**
@@ -15,9 +18,25 @@ import org.bukkit.plugin.Plugin;
  */
 public class MCEngineCurrencyCommon {
 
+    /**
+     * Singleton instance of the MCEngineCurrencyCommon API.
+     */
     private static MCEngineCurrencyCommon instance;
+
+    /**
+     * Reference to the Bukkit plugin instance using this API.
+     */
     private Plugin plugin;
+
+    /**
+     * Interface for database operations related to currency, using a specific backend (e.g., MySQL or SQLite).
+     */
     private MCEngineCurrencyApiDBInterface db;
+
+    /**
+     * Internal command dispatcher used for registering command namespaces and subcommands.
+     */
+    private final MCEngineCoreApiDispatcher dispatcher;
 
     /**
      * Constructs the currency API instance and initializes the appropriate database connection.
@@ -27,6 +46,8 @@ public class MCEngineCurrencyCommon {
     public MCEngineCurrencyCommon(Plugin plugin) {
         instance = this;
         this.plugin = plugin;
+        this.dispatcher = new MCEngineCoreApiDispatcher();
+
         String sqlType = plugin.getConfig().getString("database.type", "sqlite").toLowerCase();
         switch (sqlType.toLowerCase()) {
             case "mysql":
@@ -68,6 +89,57 @@ public class MCEngineCurrencyCommon {
      */
     public Connection getDBConnection() {
         return db.getDBConnection();
+    }
+
+    /**
+     * Registers a command namespace (e.g. "plugin1") for this plugin's dispatcher.
+     *
+     * @param namespace unique namespace for commands
+     */
+    public void registerNamespace(String namespace) {
+        dispatcher.registerNamespace(namespace);
+    }
+
+    /**
+     * Binds a Bukkit command (like /example1) to the internal dispatcher.
+     *
+     * @param namespace       the command namespace
+     * @param commandExecutor fallback executor
+     */
+    public void bindNamespaceToCommand(String namespace, CommandExecutor commandExecutor) {
+        dispatcher.bindNamespaceToCommand(namespace, commandExecutor);
+    }
+
+    /**
+     * Registers a subcommand under the specified namespace.
+     *
+     * @param namespace the command namespace
+     * @param name      subcommand label
+     * @param executor  subcommand logic
+     */
+    public void registerSubCommand(String namespace, String name, CommandExecutor executor) {
+        dispatcher.registerSubCommand(namespace, name, executor);
+    }
+
+    /**
+     * Registers a tab completer for a subcommand under the specified namespace.
+     *
+     * @param namespace    the command namespace
+     * @param subcommand   subcommand label
+     * @param tabCompleter tab completion logic
+     */
+    public void registerSubTabCompleter(String namespace, String subcommand, TabCompleter tabCompleter) {
+        dispatcher.registerSubTabCompleter(namespace, subcommand, tabCompleter);
+    }
+
+    /**
+     * Gets the dispatcher instance to assign as command executor and tab completer.
+     *
+     * @param namespace command namespace
+     * @return command executor for Bukkit command registration
+     */
+    public CommandExecutor getDispatcher(String namespace) {
+        return dispatcher.getDispatcher(namespace);
     }
 
     /**
@@ -141,7 +213,7 @@ public class MCEngineCurrencyCommon {
         if (!coinType.matches("coin|copper|silver|gold")) {
             plugin.getLogger().severe("Invalid coin type: " + coinType);
         }
-    
+
         Object result = db.getCoin(uuid.toString(), coinType);
         if (result instanceof Double) {
             return (Double) result;
