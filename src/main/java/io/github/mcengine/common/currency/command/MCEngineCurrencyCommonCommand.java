@@ -8,35 +8,48 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
+import org.bukkit.Location;
 
 /**
- * Handles the /currency default command with subcommands for checking and adding player balances.
+ * Handles the <code>/currency default</code> command with subcommands for checking balances,
+ * checking another player's balance (with permission), adding coins (with permission),
+ * and listing addons/DLC.
  */
 public class MCEngineCurrencyCommonCommand implements CommandExecutor {
 
     /**
-     * The currency API instance used for managing player balances.
+     * Currency API for managing and querying player balances.
      */
     private final MCEngineCurrencyCommon currencyApi;
 
     /**
-     * Constructs the command executor with a reference to the currency API.
+     * Creates a new command executor.
      *
-     * @param currencyApi The currency API instance.
+     * @param currencyApi currency API used to manage player coin balances
      */
     public MCEngineCurrencyCommonCommand(MCEngineCurrencyCommon currencyApi) {
         this.currencyApi = currencyApi;
     }
 
     /**
-     * Executes the /currency default command and its subcommands.
+     * Executes the <code>/currency default</code> command and its subcommands.
      *
-     * @param sender  The source of the command.
-     * @param command The command object.
-     * @param label   The alias of the command.
-     * @param args    The command arguments.
-     * @return true if the command executed successfully, false otherwise.
+     * Expected syntaxes:
+     * <ul>
+     *     <li><code>/currency default check &lt;coinType&gt;</code></li>
+     *     <li><code>/currency default check &lt;player&gt; &lt;coinType&gt;</code> (requires <code>mcengine.currency.check.player</code>)</li>
+     *     <li><code>/currency default add &lt;player&gt; &lt;coinType&gt; &lt;amount&gt;</code> (requires <code>mcengine.currency.add</code>)</li>
+     *     <li><code>/currency default addon list</code></li>
+     *     <li><code>/currency default dlc list</code></li>
+     * </ul>
+     *
+     * @param sender  source of the command
+     * @param command command object
+     * @param label   alias of the command
+     * @param args    command arguments
+     * @return {@code true} if the command handled the input, otherwise {@code false}
      */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -76,7 +89,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
                 return true;
             }
 
-            OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
+            OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]); // fixed: use args[2] for player name
             String coinType = args[3].toLowerCase();
             if (!isValidCoinType(coinType)) {
                 sender.sendMessage(ChatColor.RED + "Invalid coin type.");
@@ -125,22 +138,54 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             return true;
         }
 
+        // Unrecognized usage: show help and a temporary hologram in front of the player
         sender.sendMessage(ChatColor.RED + "Usage:");
         sender.sendMessage(ChatColor.GRAY + "/currency default check <coinType>");
         sender.sendMessage(ChatColor.GRAY + "/currency default check <player> <coinType> (OP)");
         sender.sendMessage(ChatColor.GRAY + "/currency default add <player> <coinType> <amount> (OP)");
         sender.sendMessage(ChatColor.GRAY + "/currency default addon list");
         sender.sendMessage(ChatColor.GRAY + "/currency default dlc list");
+
+        if (sender instanceof Player player) {
+            showTemporaryHologram(player, ChatColor.RED + "Invalid command\n" + ChatColor.GRAY + "Check chat for usage", 10);
+        }
+
         return true;
     }
 
     /**
-     * Checks if the coin type is valid.
+     * Validates supported coin types.
      *
-     * @param type The coin type.
-     * @return True if valid, false otherwise.
+     * @param type coin type string (case-insensitive)
+     * @return {@code true} if the type is one of coin, copper, silver, or gold; otherwise {@code false}
      */
     private boolean isValidCoinType(String type) {
         return type.matches("coin|copper|silver|gold");
+    }
+
+    /**
+     * Spawns a small, invisible ArmorStand with a visible name in front of the player, then removes it after a delay.
+     *
+     * @param player          player to show the hologram to
+     * @param text            multi-line text to display (use <code>\n</code> for line breaks)
+     * @param durationSeconds how long to display the hologram before removal
+     */
+    private void showTemporaryHologram(Player player, String text, int durationSeconds) {
+        // Position: ~1.5 blocks in front of the player's eyes
+        Location eye = player.getEyeLocation();
+        Location inFront = eye.add(eye.getDirection().normalize().multiply(1.5));
+
+        ArmorStand stand = player.getWorld().spawn(inFront, ArmorStand.class, as -> {
+            as.setInvisible(true);
+            as.setMarker(true);
+            as.setSmall(true);
+            as.setGravity(false);
+            as.setCustomNameVisible(true);
+            as.setCustomName(text);
+            as.setInvulnerable(true);
+            as.setCollidable(false);
+        });
+
+        Bukkit.getScheduler().runTaskLater(currencyApi.getPlugin(), stand::remove, durationSeconds * 20L);
     }
 }
