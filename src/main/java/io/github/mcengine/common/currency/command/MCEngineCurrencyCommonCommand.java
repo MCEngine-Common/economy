@@ -6,8 +6,8 @@ import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -18,6 +18,10 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -31,6 +35,23 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
      * Currency API for managing and querying player balances.
      */
     private final MCEngineCurrencyCommon currencyApi;
+
+    /**
+     * Default number of seconds to display the hologram for wrong usage.
+     */
+    private static final int DEFAULT_HOLOGRAM_SECONDS = 10;
+
+    /**
+     * Vertical spacing between stacked ArmorStand lines for the hologram.
+     * Smaller values pack lines closer together.
+     */
+    private static final double HOLOGRAM_LINE_SPACING = 0.27D;
+
+    /**
+     * Suggestion prefix that will be offered to the player after clicking the hologram.
+     * This text is sent as a clickable chat component using {@link ClickEvent.Action#SUGGEST_COMMAND}.
+     */
+    private static final String SUGGEST_PREFIX = "/currency default ";
 
     /**
      * Creates a new command executor.
@@ -146,19 +167,12 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             return true;
         }
 
-        // Unrecognized usage: show help and a temporary, clickable hologram in front of the player
-        sender.sendMessage(ChatColor.RED + "Usage:");
-        sender.sendMessage(ChatColor.GRAY + "/currency default check <coinType>");
-        sender.sendMessage(ChatColor.GRAY + "/currency default check <player> <coinType> (OP)");
-        sender.sendMessage(ChatColor.GRAY + "/currency default add <player> <coinType> <amount> (OP)");
-        sender.sendMessage(ChatColor.GRAY + "/currency default addon list");
-        sender.sendMessage(ChatColor.GRAY + "/currency default dlc list");
+        // Unrecognized usage: show chat usage AND a multi-line hologram with the same usage.
+        sendUsageTo(sender);
 
         if (sender instanceof Player player) {
-            showTemporaryHologram(player,
-                    ChatColor.RED + "Invalid command\n" + ChatColor.GRAY + "Click me to prefill usage",
-                    10,
-                    "/currency default ");
+            List<String> lines = buildUsageHologramLines();
+            showTemporaryHologram(player, lines, DEFAULT_HOLOGRAM_SECONDS, SUGGEST_PREFIX);
         }
 
         return true;
@@ -175,55 +189,103 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
     }
 
     /**
-     * Spawns an invisible marker ArmorStand ("hologram") in front of the player with a visible multi-line name,
-     * listens for the player to click it, and on click sends a chat component that <em>suggests</em> a command
-     * (pre-fills the player's chat input with the provided prefix). The hologram and listener are automatically
-     * removed after the specified duration.
+     * Sends textual usage information to a {@link CommandSender}. This mirrors what is shown in the hologram.
+     *
+     * @param sender recipient of the usage text
+     */
+    private void sendUsageTo(CommandSender sender) {
+        sender.sendMessage(ChatColor.RED + "Usage:");
+        sender.sendMessage(ChatColor.GRAY + "/currency default check <coinType>");
+        sender.sendMessage(ChatColor.GRAY + "/currency default check <player> <coinType> (OP)");
+        sender.sendMessage(ChatColor.GRAY + "/currency default add <player> <coinType> <amount> (OP)");
+        sender.sendMessage(ChatColor.GRAY + "/currency default addon list");
+        sender.sendMessage(ChatColor.GRAY + "/currency default dlc list");
+    }
+
+    /**
+     * Builds the list of lines for the usage hologram. Lines are colored and ordered top-to-bottom.
+     *
+     * @return lines to display in the hologram
+     */
+    private List<String> buildUsageHologramLines() {
+        List<String> lines = new ArrayList<>();
+        lines.add(ChatColor.DARK_RED + "" + ChatColor.BOLD + "Invalid command");
+        lines.add(ChatColor.GOLD + "Usage:");
+        lines.add(ChatColor.GRAY + "/currency default check <coinType>");
+        lines.add(ChatColor.GRAY + "/currency default check <player> <coinType> (OP)");
+        lines.add(ChatColor.GRAY + "/currency default add <player> <coinType> <amount> (OP)");
+        lines.add(ChatColor.GRAY + "/currency default addon list");
+        lines.add(ChatColor.GRAY + "/currency default dlc list");
+        lines.add(ChatColor.YELLOW + "Right-click to get a command prompt");
+        return lines;
+    }
+
+    /**
+     * Spawns a stacked, multi-line hologram (one invisible marker {@link ArmorStand} per line) in front of
+     * the player, listens for the player to right-click any line, and then sends a clickable chat component
+     * that suggests the provided command prefix (pre-filling their chat input when they click the chat message).
+     * <p>
+     * All spawned entities and the listener are automatically removed after the specified duration.
      *
      * @param player          player to show the hologram to and listen for clicks from
-     * @param text            multi-line text to display (use <code>\n</code> for line breaks)
+     * @param lines           ordered list of text lines to display (top-to-bottom)
      * @param durationSeconds how long to display the hologram before removal
-     * @param suggestPrefix   command prefix to suggest to the player's chat on click (e.g., <code>"/currency default "</code>)
+     * @param suggestPrefix   command prefix to suggest to the player's chat (e.g. {@code "/currency default "})
      */
-    private void showTemporaryHologram(Player player, String text, int durationSeconds, String suggestPrefix) {
-        // Position: ~1.5 blocks in front of the player's eyes
+    private void showTemporaryHologram(Player player, List<String> lines, int durationSeconds, String suggestPrefix) {
+        // Position ~1.6 blocks in front of the player's eyes, then offset upward to fit all lines
         Location eye = player.getEyeLocation();
-        Location inFront = eye.add(eye.getDirection().normalize().multiply(1.5));
+        Location base = eye.add(eye.getDirection().normalize().multiply(1.6));
 
-        ArmorStand stand = player.getWorld().spawn(inFront, ArmorStand.class, as -> {
-            as.setInvisible(true);
-            as.setMarker(true);
-            as.setSmall(true);
-            as.setGravity(false);
-            as.setCustomNameVisible(true);
-            as.setCustomName(text);
-            as.setInvulnerable(true);
-            as.setCollidable(false);
-        });
+        // Raise base so the "title" isn't at the player's feet when we stack downward
+        base.add(0, (lines.size() - 1) * HOLOGRAM_LINE_SPACING * 0.5, 0);
 
-        UUID standId = stand.getUniqueId();
+        Set<UUID> standIds = new HashSet<>();
+        List<ArmorStand> spawned = new ArrayList<>(lines.size());
+
+        for (int i = 0; i < lines.size(); i++) {
+            final String line = lines.get(i);
+            Location lineLoc = base.clone().subtract(0, i * HOLOGRAM_LINE_SPACING, 0);
+
+            ArmorStand stand = player.getWorld().spawn(lineLoc, ArmorStand.class, as -> {
+                as.setInvisible(true);
+                as.setMarker(true);
+                as.setSmall(true);
+                as.setGravity(false);
+                as.setCustomNameVisible(true);
+                as.setCustomName(line);
+                as.setInvulnerable(true);
+                as.setCollidable(false);
+            });
+
+            spawned.add(stand);
+            standIds.add(stand.getUniqueId());
+        }
+
+        // Listener: only the creator player can interact; right-click yields a clickable chat suggestion.
         Listener listener = new Listener() {
             @EventHandler
             public void onInteract(PlayerInteractAtEntityEvent event) {
                 if (!event.getPlayer().getUniqueId().equals(player.getUniqueId())) return;
-                if (!event.getRightClicked().getUniqueId().equals(standId)) return;
+                if (!standIds.contains(event.getRightClicked().getUniqueId())) return;
 
                 event.setCancelled(true);
 
-                // Send a clickable chat component that suggests the command prefix
                 TextComponent tip = new TextComponent(ChatColor.YELLOW + "Click to prefill: " + ChatColor.WHITE + suggestPrefix);
                 tip.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, suggestPrefix));
                 player.spigot().sendMessage(tip);
-
-                // Optionally remove the hologram on click for UX
-                stand.remove();
-                HandlerList.unregisterAll(this);
             }
         };
 
         Bukkit.getPluginManager().registerEvents(listener, currencyApi.getPlugin());
+
+        // Cleanup after duration
         Bukkit.getScheduler().runTaskLater(currencyApi.getPlugin(), () -> {
-            if (!stand.isDead()) stand.remove();
+            for (ArmorStand stand : spawned) {
+                if (stand != null && !stand.isDead()) {
+                    stand.remove();
+                }
+            }
             HandlerList.unregisterAll(listener);
         }, durationSeconds * 20L);
     }
