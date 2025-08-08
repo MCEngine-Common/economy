@@ -221,9 +221,12 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
     }
 
     /**
-     * Spawns a stacked, multi-line hologram (one invisible marker {@link ArmorStand} per line) in front of
+     * Spawns a stacked, multi-line hologram (one invisible {@link ArmorStand} per line) in front of
      * the player, listens for the player to right-click any line, and then sends a clickable chat component
      * that suggests the provided command prefix (pre-filling their chat input when they click the chat message).
+     * <p>
+     * IMPORTANT: To make the hologram reliably clickable we DO NOT set marker mode, which would otherwise
+     * remove the hitbox and prevent {@link PlayerInteractAtEntityEvent} from firing.
      * <p>
      * All spawned entities and the listener are automatically removed after the specified duration.
      *
@@ -247,10 +250,11 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             final String line = lines.get(i);
             Location lineLoc = base.clone().subtract(0, i * HOLOGRAM_LINE_SPACING, 0);
 
+            // NOTE: setMarker(false) to keep a clickable hitbox; setSmall(false) to make click easier.
             ArmorStand stand = player.getWorld().spawn(lineLoc, ArmorStand.class, as -> {
                 as.setInvisible(true);
-                as.setMarker(true);
-                as.setSmall(true);
+                as.setMarker(false);
+                as.setSmall(false);
                 as.setGravity(false);
                 as.setCustomNameVisible(true);
                 as.setCustomName(line);
@@ -264,7 +268,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
 
         // Listener: only the creator player can interact; right-click yields a clickable chat suggestion.
         Listener listener = new Listener() {
-            @EventHandler
+            @EventHandler(ignoreCancelled = true)
             public void onInteract(PlayerInteractAtEntityEvent event) {
                 if (!event.getPlayer().getUniqueId().equals(player.getUniqueId())) return;
                 if (!standIds.contains(event.getRightClicked().getUniqueId())) return;
