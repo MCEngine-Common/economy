@@ -54,6 +54,17 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
     private static final String SUGGEST_PREFIX = "/currency default ";
 
     /**
+     * Horizontal distance (in blocks) to place the hologram in front of the player's eyes.
+     */
+    private static final double HOLOGRAM_FORWARD = 1.6D;
+
+    /**
+     * Vertical offset (in blocks) applied to the hologram base relative to the player's eye height.
+     * Negative values place the hologram lower; tuned so the first line appears near chest level.
+     */
+    private static final double HOLOGRAM_VERTICAL_OFFSET = -0.9D;
+
+    /**
      * Creates a new command executor.
      *
      * @param currencyApi currency API used to manage player coin balances
@@ -236,13 +247,12 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
      * @param suggestPrefix   command prefix to suggest to the player's chat (e.g. {@code "/currency default "})
      */
     private void showTemporaryHologram(Player player, List<String> lines, int durationSeconds, String suggestPrefix) {
-        // Position ~1.6 blocks in front of the player's eyes, then offset upward to fit all lines
+        // Base position: a little in front of eyes and LOWERED so it's not floating too high.
         Location eye = player.getEyeLocation();
-        Location base = eye.add(eye.getDirection().normalize().multiply(1.6));
+        Location base = eye.add(eye.getDirection().normalize().multiply(HOLOGRAM_FORWARD))
+                           .add(0, HOLOGRAM_VERTICAL_OFFSET, 0);
 
-        // Raise base so the "title" isn't at the player's feet when we stack downward
-        base.add(0, (lines.size() - 1) * HOLOGRAM_LINE_SPACING * 0.5, 0);
-
+        // Stack lines downward from the base so the title appears near chest level.
         Set<UUID> standIds = new HashSet<>();
         List<ArmorStand> spawned = new ArrayList<>(lines.size());
 
@@ -253,8 +263,8 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             // NOTE: setMarker(false) to keep a clickable hitbox; setSmall(false) to make click easier.
             ArmorStand stand = player.getWorld().spawn(lineLoc, ArmorStand.class, as -> {
                 as.setInvisible(true);
-                as.setMarker(false);
-                as.setSmall(false);
+                as.setMarker(false);           // keep hitbox so right-click works
+                as.setSmall(false);            // bigger, easier-to-click hitbox
                 as.setGravity(false);
                 as.setCustomNameVisible(true);
                 as.setCustomName(line);
