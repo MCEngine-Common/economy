@@ -28,6 +28,21 @@ ext {
 }
 
 repositories {
+    ext.configureGitHubRepo = { repoName, repoUrl ->
+        maven {
+            name = repoName
+            url = uri(repoUrl)
+            credentials {
+                username = project.user_git_name
+                password = project.user_github_token ?: project.repository_token ?: project.organization_token
+            }
+        }
+    }
+
+    configureGitHubRepo('MCEngine Core API', 'https://maven.pkg.github.com/MCEngine-API/core')
+    configureGitHubRepo('MCEngine Currency API', 'https://maven.pkg.github.com/MCEngine-API/currency')
+    configureGitHubRepo('MCEngine Hologram API', 'https://maven.pkg.github.com/MCEngine-API/hologram')
+
     mavenCentral()
     mavenLocal()
 
@@ -46,20 +61,6 @@ repositories {
 
     maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
     maven { url = 'https://oss.sonatype.org/content/repositories/central' }
-
-    ext.configureGitHubRepo = { repoName, repoUrl ->
-        maven {
-            name = repoName
-            url = uri(repoUrl)
-            credentials {
-                username = project.user_git_name
-                password = project.user_github_token ?: project.repository_token ?: project.organization_token
-            }
-        }
-    }
-
-    configureGitHubRepo('MCEngine Core API', 'https://maven.pkg.github.com/MCEngine-API/core')
-    configureGitHubRepo('MCEngine Currency API', 'https://maven.pkg.github.com/MCEngine-API/currency')
 }
 
 dependencies {
@@ -70,6 +71,7 @@ dependencies {
 
     compileOnly 'io.github.mcengine:core-api:2025.0.8-8'
     compileOnly 'io.github.mcengine:currency-api:2025.0.8-8'
+    compileOnly 'io.github.mcengine:hologram-api:2025.0.8-0'
 }
 
 shadowJar {
@@ -96,7 +98,7 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             artifact tasks.named('shadowJar').get()
-            artifactId = 'currency-common'
+            artifactId = "${project.repository_name}-common"
 
             pom {
                 name.set(project.jarName)
