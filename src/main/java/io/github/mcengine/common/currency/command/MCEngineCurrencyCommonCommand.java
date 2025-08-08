@@ -2,15 +2,23 @@ package io.github.mcengine.common.currency.command;
 
 import io.github.mcengine.common.currency.MCEngineCurrencyCommon;
 import io.github.mcengine.api.core.MCEngineCoreApi;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
-import org.bukkit.Location;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+
+import java.util.UUID;
 
 /**
  * Handles the <code>/currency default</code> command with subcommands for checking balances,
@@ -89,7 +97,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
                 return true;
             }
 
-            OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]); // fixed: use args[2] for player name
+            OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
             String coinType = args[3].toLowerCase();
             if (!isValidCoinType(coinType)) {
                 sender.sendMessage(ChatColor.RED + "Invalid coin type.");
@@ -138,7 +146,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             return true;
         }
 
-        // Unrecognized usage: show help and a temporary hologram in front of the player
+        // Unrecognized usage: show help and a temporary, clickable hologram in front of the player
         sender.sendMessage(ChatColor.RED + "Usage:");
         sender.sendMessage(ChatColor.GRAY + "/currency default check <coinType>");
         sender.sendMessage(ChatColor.GRAY + "/currency default check <player> <coinType> (OP)");
@@ -147,7 +155,10 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
         sender.sendMessage(ChatColor.GRAY + "/currency default dlc list");
 
         if (sender instanceof Player player) {
-            showTemporaryHologram(player, ChatColor.RED + "Invalid command\n" + ChatColor.GRAY + "Check chat for usage", 10);
+            showTemporaryHologram(player,
+                    ChatColor.RED + "Invalid command\n" + ChatColor.GRAY + "Click me to prefill usage",
+                    10,
+                    "/currency default ");
         }
 
         return true;
@@ -164,13 +175,17 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
     }
 
     /**
-     * Spawns a small, invisible ArmorStand with a visible name in front of the player, then removes it after a delay.
+     * Spawns an invisible marker ArmorStand ("hologram") in front of the player with a visible multi-line name,
+     * listens for the player to click it, and on click sends a chat component that <em>suggests</em> a command
+     * (pre-fills the player's chat input with the provided prefix). The hologram and listener are automatically
+     * removed after the specified duration.
      *
-     * @param player          player to show the hologram to
+     * @param player          player to show the hologram to and listen for clicks from
      * @param text            multi-line text to display (use <code>\n</code> for line breaks)
      * @param durationSeconds how long to display the hologram before removal
+     * @param suggestPrefix   command prefix to suggest to the player's chat on click (e.g., <code>"/currency default "</code>)
      */
-    private void showTemporaryHologram(Player player, String text, int durationSeconds) {
+    private void showTemporaryHologram(Player player, String text, int durationSeconds, String suggestPrefix) {
         // Position: ~1.5 blocks in front of the player's eyes
         Location eye = player.getEyeLocation();
         Location inFront = eye.add(eye.getDirection().normalize().multiply(1.5));
@@ -186,6 +201,30 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
             as.setCollidable(false);
         });
 
-        Bukkit.getScheduler().runTaskLater(currencyApi.getPlugin(), stand::remove, durationSeconds * 20L);
+        UUID standId = stand.getUniqueId();
+        Listener listener = new Listener() {
+            @EventHandler
+            public void onInteract(PlayerInteractAtEntityEvent event) {
+                if (!event.getPlayer().getUniqueId().equals(player.getUniqueId())) return;
+                if (!event.getRightClicked().getUniqueId().equals(standId)) return;
+
+                event.setCancelled(true);
+
+                // Send a clickable chat component that suggests the command prefix
+                TextComponent tip = new TextComponent(ChatColor.YELLOW + "Click to prefill: " + ChatColor.WHITE + suggestPrefix);
+                tip.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, suggestPrefix));
+                player.spigot().sendMessage(tip);
+
+                // Optionally remove the hologram on click for UX
+                stand.remove();
+                HandlerList.unregisterAll(this);
+            }
+        };
+
+        Bukkit.getPluginManager().registerEvents(listener, currencyApi.getPlugin());
+        Bukkit.getScheduler().runTaskLater(currencyApi.getPlugin(), () -> {
+            if (!stand.isDead()) stand.remove();
+            HandlerList.unregisterAll(listener);
+        }, durationSeconds * 20L);
     }
 }
