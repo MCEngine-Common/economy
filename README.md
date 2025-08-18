@@ -1,3 +1,3 @@
-# Information
+# Information 📖
 
-This repository is created to share useful commands and listeners for Currency plugins.
+Info on [`website`](https://mcengine-website.github.io/currency/common/)
