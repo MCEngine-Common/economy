@@ -1,30 +1,40 @@
+// build.gradle
 plugins {
     id 'java'
     id 'com.gradleup.shadow' version '9.0.2'
     id 'maven-publish'
 }
 
-// Set project version using a property
+// Set project version using a property (expects key: "<project.name>.version")
 version = project.properties[project.name + '.version']
 group = 'io.github.mcengine'
 
 ext {
-    // User
+    // === User credentials (read from environment) ===
+    // Git username used for GitHub Packages auth.
     user_git_name = System.getenv('USER_GIT_NAME')
+    // GitHub token used for publishing/reading packages; falls back to repository/org tokens where used.
     user_github_token = System.getenv('USER_GITHUB_TOKEN')
 
-    // Organization
+    // === Organization metadata ===
+    // Optional organization id (not required by build logic but kept for parity with other modules).
     organization_id = System.getenv('ORGANIZATION_ID')
+    // Default org name for this module.
     organization_name = System.getenv('ORGANIZATION_NAME') ?: 'MCEngine-Common'
+    // Optional org-scoped token for GitHub Packages.
     organization_token = System.getenv('ORGANIZATION_TOKEN')
 
-    // Repository
+    // === Repository metadata ===
+    // Optional repository id.
     repository_id = System.getenv('REPOSITORY_ID')
-    repository_name = System.getenv('REPOSITORY_NAME') ?: 'currency'
+    // Default repository name for Economy.
+    repository_name = System.getenv('REPOSITORY_NAME') ?: 'economy'
+    // Optional repo-scoped token for GitHub Packages.
     repository_token = System.getenv('REPOSITORY_TOKEN')
 
-    // Project Information
-    jarName = System.getenv('PROJECT_NAME') ?: 'MCEngineCurrency'
+    // === Project artifact naming ===
+    // Default jar base name for this module when not provided externally.
+    jarName = System.getenv('PROJECT_NAME') ?: 'MCEngineEconomy'
 }
 
 repositories {
@@ -33,14 +43,14 @@ repositories {
             name = repoName
             url = uri(repoUrl)
             credentials {
-                username = project.user_git_name
-                password = project.user_github_token ?: project.repository_token ?: project.organization_token
+                username = user_git_name
+                password = user_github_token ?: repository_token ?: organization_token
             }
         }
     }
 
     configureGitHubRepo('MCEngine Core API', 'https://maven.pkg.github.com/MCEngine-API/core')
-    configureGitHubRepo('MCEngine Currency API', 'https://maven.pkg.github.com/MCEngine-API/currency')
+    configureGitHubRepo('MCEngine Economy API', 'https://maven.pkg.github.com/MCEngine-API/economy')
     configureGitHubRepo('MCEngine Hologram API', 'https://maven.pkg.github.com/MCEngine-API/hologram')
 
     mavenCentral()
@@ -70,14 +80,14 @@ dependencies {
     compileOnly 'org.mongodb:mongodb-driver-sync:5.5.1'
 
     compileOnly 'io.github.mcengine:core-api:2025.0.8-29'
-    compileOnly 'io.github.mcengine:currency-api:2025.0.8-29'
+    compileOnly 'io.github.mcengine:economy-api:2025.0.8-29'
     compileOnly 'io.github.mcengine:hologram-api:2025.0.8-29'
 }
 
 shadowJar {
     version = version
     archiveClassifier = null
-    archiveBaseName = project.jarName
+    archiveBaseName = jarName
 }
 
 tasks.named('jar').configure {
@@ -88,27 +98,27 @@ publishing {
     repositories {
         maven {
             name = 'GitHubPackages'
-            url = uri("https://maven.pkg.github.com/${project.organization_name}/${project.repository_name}")
+            url = uri("https://maven.pkg.github.com/${organization_name}/${repository_name}")
             credentials {
-                username = project.user_git_name
-                password = project.user_github_token ?: project.repository_token ?: project.organization_token
+                username = user_git_name
+                password = user_github_token ?: repository_token ?: organization_token
             }
         }
     }
     publications {
         mavenJava(MavenPublication) {
             artifact tasks.named('shadowJar').get()
-            artifactId = "${project.repository_name}-common"
+            artifactId = "${repository_name}-common"
 
             pom {
-                name.set(project.jarName)
-                description.set("The ${project.jarName} API is designed for use by Currency plugin.")
-                url.set("https://github.com/${project.organization_name}/${project.repository_name}")
+                name.set(jarName)
+                description.set("The ${jarName} API is designed for use by Economy plugin.")
+                url.set("https://github.com/${organization_name}/${repository_name}")
 
                 scm {
-                    connection.set("scm:git:git://github.com/${project.organization_name}/${project.repository_name}.git")
-                    developerConnection.set("scm:git:ssh://github.com:${project.organization_name}/${project.repository_name}.git")
-                    url.set("https://github.com/${project.organization_name}/${project.repository_name}")
+                    connection.set("scm:git:git://github.com/${organization_name}/${repository_name}.git")
+                    developerConnection.set("scm:git:ssh://github.com:${organization_name}/${repository_name}.git")
+                    url.set("https://github.com/${organization_name}/${repository_name}")
                 }
 
                 developers {
