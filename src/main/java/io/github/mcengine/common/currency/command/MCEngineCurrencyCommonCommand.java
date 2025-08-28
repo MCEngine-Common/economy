@@ -1,8 +1,8 @@
-package io.github.mcengine.common.currency.command;
+package io.github.mcengine.common.economy.command;
 
 import io.github.mcengine.api.core.MCEngineCoreApi;
 import io.github.mcengine.api.hologram.MCEngineHologramApi;
-import io.github.mcengine.common.currency.MCEngineCurrencyCommon;
+import io.github.mcengine.common.economy.MCEngineEconomyCommon;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
@@ -14,71 +14,52 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 /**
- * Handles the <code>/currency default</code> command with subcommands for checking balances,
+ * Handles the <code>/economy default</code> command with subcommands for checking balances,
  * checking another player's balance (with permission), adding coins (with permission),
  * and listing addons/DLC.
  */
-public class MCEngineCurrencyCommonCommand implements CommandExecutor {
+public class MCEngineEconomyCommonCommand implements CommandExecutor {
 
-    /**
-     * Currency API for managing and querying player balances.
-     */
-    private final MCEngineCurrencyCommon currencyApi;
+    /** Economy API for managing and querying player balances. */
+    private final MCEngineEconomyCommon currencyApi;
 
     /**
      * The command prefix suggested to the user when they interact with the usage hologram.
-     * This is sent as a clickable chat component using {@link ClickEvent.Action#SUGGEST_COMMAND}.
+     * Sent as a clickable chat component using {@link ClickEvent.Action#SUGGEST_COMMAND}.
      */
-    private static final String SUGGEST_PREFIX = "/currency default ";
+    private static final String SUGGEST_PREFIX = "/economy default ";
 
-    /**
-     * Default number of seconds the usage hologram should remain visible.
-     */
+    /** Default number of seconds the usage hologram remains visible. */
     private static final int DEFAULT_HOLOGRAM_SECONDS = 10;
 
     /**
      * Canonical usage lines (without the leading "Usage:" label). These lines are rendered
      * both in chat and inside the usage hologram to ensure consistency.
      */
-    private static final String[] USAGE_LINES = new String[]{
-            "/currency default check <coinType>",
-            "/currency default check <player> <coinType> (OP)",
-            "/currency default add <player> <coinType> <amount> (OP)",
-            "/currency default addon list",
-            "/currency default dlc list"
+    private static final String[] USAGE_LINES = new String[] {
+            "/economy default check <coinType>",
+            "/economy default check <player> <coinType> (OP)",
+            "/economy default add <player> <coinType> <amount> (OP)",
+            "/economy default addon list",
+            "/economy default dlc list"
     };
 
     /**
      * Creates a new command executor.
      *
-     * @param currencyApi currency API used to manage player coin balances
+     * @param currencyApi economy API used to manage player coin balances
      */
-    public MCEngineCurrencyCommonCommand(MCEngineCurrencyCommon currencyApi) {
+    public MCEngineEconomyCommonCommand(MCEngineEconomyCommon currencyApi) {
         this.currencyApi = currencyApi;
     }
 
     /**
-     * Executes the <code>/currency default</code> command and its subcommands.
-     *
-     * Expected syntaxes:
-     * <ul>
-     *     <li><code>/currency default check &lt;coinType&gt;</code></li>
-     *     <li><code>/currency default check &lt;player&gt; &lt;coinType&gt;</code> (requires <code>mcengine.currency.check.player</code>)</li>
-     *     <li><code>/currency default add &lt;player&gt; &lt;coinType&gt; &lt;amount&gt;</code> (requires <code>mcengine.currency.add</code>)</li>
-     *     <li><code>/currency default addon list</code></li>
-     *     <li><code>/currency default dlc list</code></li>
-     * </ul>
-     *
-     * @param sender  source of the command
-     * @param command command object
-     * @param label   alias of the command
-     * @param args    command arguments
-     * @return {@code true} if the command handled the input, otherwise {@code false}
+     * Executes the <code>/economy default</code> command and its subcommands.
      */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 
-        // /currency addon list or /currency dlc list
+        // /economy addon list or /economy dlc list
         if (args.length == 3 && ("addon".equalsIgnoreCase(args[1]) || "dlc".equalsIgnoreCase(args[1]))
                 && "list".equalsIgnoreCase(args[2])) {
             if (sender instanceof Player player) {
@@ -108,7 +89,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
 
         // Admin checking another player's balance
         if (args.length == 4 && args[1].equalsIgnoreCase("check")) {
-            if (!sender.hasPermission("mcengine.currency.check.player")) {
+            if (!sender.hasPermission("mcengine.economy.check.player")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to do that.");
                 return true;
             }
@@ -131,7 +112,7 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
 
         // Admin adding coins
         if (args.length == 5 && args[1].equalsIgnoreCase("add")) {
-            if (!sender.hasPermission("mcengine.currency.add")) {
+            if (!sender.hasPermission("mcengine.economy.add")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to do that.");
                 return true;
             }
@@ -177,14 +158,14 @@ public class MCEngineCurrencyCommonCommand implements CommandExecutor {
      * Validates supported coin types.
      *
      * @param type coin type string (case-insensitive)
-     * @return {@code true} if the type is one of coin, copper, silver, or gold; otherwise {@code false}
+     * @return {@code true} if valid; otherwise {@code false}
      */
     private boolean isValidCoinType(String type) {
         return type.matches("coin|copper|silver|gold");
     }
 
     /**
-     * Sends textual usage information to a {@link CommandSender}. This mirrors what is shown in the hologram.
+     * Sends textual usage information to a {@link CommandSender}. Mirrors hologram content.
      *
      * @param sender recipient of the usage text
      */

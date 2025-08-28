@@ -1,27 +1,47 @@
-package io.github.mcengine.common.currency.database.postgresql;
+package io.github.mcengine.common.economy.database.postgresql;
 
-import io.github.mcengine.api.currency.database.MCEngineCurrencyApiDBInterface;
+import io.github.mcengine.api.economy.database.MCEngineEconomyApiDBInterface;
 import org.bukkit.plugin.Plugin;
 
 import java.sql.*;
 import java.util.UUID;
 
 /**
- * PostgreSQL implementation of the MCEngineCurrencyApiDBInterface.
- * Handles currency data storage and transactions using a PostgreSQL database.
+ * PostgreSQL implementation of the {@link MCEngineEconomyApiDBInterface}.
+ * Manages Economy data storage and transactions using PostgreSQL.
  */
-public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterface {
+public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface {
 
+    /** Owning plugin for config and logging. */
     private final Plugin plugin;
-    private final String dbHost, dbPort, dbName, dbUser, dbPassword, dbSSL;
+
+    /** DB host. */
+    private final String dbHost;
+
+    /** DB port. */
+    private final String dbPort;
+
+    /** DB name. */
+    private final String dbName;
+
+    /** DB user. */
+    private final String dbUser;
+
+    /** DB password. */
+    private final String dbPassword;
+
+    /** SSL flag. */
+    private final String dbSSL;
+
+    /** Active JDBC connection. */
     private Connection connection;
 
     /**
-     * Constructs a PostgreSQL currency manager.
+     * Constructs a PostgreSQL Economy manager.
      *
-     * @param plugin the main Bukkit plugin instance used to fetch configuration and log information
+     * @param plugin the main Bukkit plugin instance
      */
-    public MCEngineCurrencyPostgreSQL(Plugin plugin) {
+    public MCEngineEconomyPostgreSQL(Plugin plugin) {
         this.plugin = plugin;
         this.dbHost = plugin.getConfig().getString("database.postgresql.host", "localhost");
         this.dbPort = plugin.getConfig().getString("database.postgresql.port", "5432");
@@ -32,9 +52,7 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
         connect();
     }
 
-    /**
-     * Establishes a connection to the PostgreSQL database using configuration values.
-     */
+    /** Establishes a connection to PostgreSQL. */
     @Override
     public void connect() {
         String dbUrl = "jdbc:postgresql://" + dbHost + ":" + dbPort + "/" + dbName + "?ssl=" + dbSSL;
@@ -46,9 +64,7 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
         }
     }
 
-    /**
-     * Creates the necessary tables (`currency` and `currency_transaction`) in the PostgreSQL database.
-     */
+    /** Creates the necessary tables (`currency` and `currency_transaction`). */
     @Override
     public void createTable() {
         String createCurrencyTableSQL = "CREATE TABLE IF NOT EXISTS currency (" +
@@ -83,9 +99,7 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
         }
     }
 
-    /**
-     * Closes the active database connection, if open.
-     */
+    /** Closes the active database connection, if any. */
     @Override
     public void disConnection() {
         try {
@@ -101,9 +115,9 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
     /**
      * Retrieves a specific coin type balance for the given player.
      *
-     * @param playerUuid UUID of the player
-     * @param coinType   Column name (coin, copper, silver, gold)
-     * @return the balance value, or 0.0 if not found
+     * @param playerUuid UUID string of the player
+     * @param coinType   column name (coin, copper, silver, gold)
+     * @return the balance value; 0.0 if not found
      */
     @Override
     public double getCoin(String playerUuid, String coinType) {
@@ -118,11 +132,7 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
         return 0.0;
     }
 
-    /**
-     * Returns the current database connection object.
-     *
-     * @return the JDBC connection instance
-     */
+    /** @return the active JDBC connection */
     @Override
     public Connection getDBConnection() {
         return connection;
@@ -130,12 +140,6 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
 
     /**
      * Inserts a currency record for a player if it does not already exist.
-     *
-     * @param playerUuid the player's UUID
-     * @param coin       general coin value
-     * @param copper     copper coin value
-     * @param silver     silver coin value
-     * @param gold       gold coin value
      */
     @Override
     public void insertCurrency(String playerUuid, double coin, double copper, double silver, double gold) {
@@ -155,13 +159,6 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
 
     /**
      * Inserts a new currency transaction between two players.
-     *
-     * @param playerUuidSender   sender UUID
-     * @param playerUuidReceiver receiver UUID
-     * @param currencyType       type of currency (coin, copper, silver, gold)
-     * @param transactionType    transaction type (pay, purchase)
-     * @param amount             amount of currency
-     * @param notes              optional notes for the transaction
      */
     @Override
     public void insertTransaction(String playerUuidSender, String playerUuidReceiver, String currencyType,
@@ -187,10 +184,10 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
     }
 
     /**
-     * Checks if a player exists in the `currency` table.
+     * Checks if a player exists in the {@code currency} table.
      *
-     * @param uuid the player's UUID
-     * @return true if the player record exists, false otherwise
+     * @param uuid the player's UUID string
+     * @return true if the record exists; false otherwise
      */
     @Override
     public boolean playerExists(String uuid) {
@@ -207,11 +204,6 @@ public class MCEngineCurrencyPostgreSQL implements MCEngineCurrencyApiDBInterfac
 
     /**
      * Updates a player's coin balance using an arithmetic operator.
-     *
-     * @param playerUuid UUID of the player
-     * @param operator   '+' to increase, '-' to decrease
-     * @param coinType   which coin field to update
-     * @param amt        amount to modify
      */
     @Override
     public void updateCurrencyValue(String playerUuid, String operator, String coinType, double amt) {
