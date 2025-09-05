@@ -4,7 +4,7 @@ import java.sql.Connection;
 import java.util.UUID;
 
 import io.github.mcengine.api.core.util.MCEngineCoreApiDispatcher;
-import io.github.mcengine.api.economy.database.MCEngineEconomyApiDBInterface;
+import io.github.mcengine.common.economy.database.MCEngineEconomyApiDBInterface;
 import io.github.mcengine.common.economy.database.mysql.MCEngineEconomyMySQL;
 import io.github.mcengine.common.economy.database.sqlite.MCEngineEconomySQLite;
 import org.bukkit.command.CommandExecutor;

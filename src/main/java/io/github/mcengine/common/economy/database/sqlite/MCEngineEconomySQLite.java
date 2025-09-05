@@ -7,7 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import io.github.mcengine.api.economy.database.MCEngineEconomyApiDBInterface;
+import io.github.mcengine.common.economy.database.MCEngineEconomyApiDBInterface;
 import org.bukkit.plugin.Plugin;
 
 /**

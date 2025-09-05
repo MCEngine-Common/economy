@@ -1,6 +1,6 @@
 package io.github.mcengine.common.economy.database.postgresql;
 
-import io.github.mcengine.api.economy.database.MCEngineEconomyApiDBInterface;
+import io.github.mcengine.common.economy.database.MCEngineEconomyApiDBInterface;
 import org.bukkit.plugin.Plugin;
 
 import java.sql.*;
