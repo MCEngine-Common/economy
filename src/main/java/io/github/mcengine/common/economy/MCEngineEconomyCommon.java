@@ -1,6 +1,5 @@
 package io.github.mcengine.common.economy;
 
-import java.sql.Connection;
 import java.util.UUID;
 
 import io.github.mcengine.api.core.util.MCEngineCoreApiDispatcher;
@@ -65,7 +64,7 @@ public class MCEngineEconomyCommon {
      */
     public static MCEngineEconomyCommon getApi() {
         return instance;
-        }
+    }
 
     /**
      * Gets the Bukkit plugin instance linked to this API.
@@ -74,16 +73,6 @@ public class MCEngineEconomyCommon {
      */
     public Plugin getPlugin() {
         return plugin;
-    }
-
-    /**
-     * Retrieves the active database connection used by the plugin.
-     * <p>Useful for custom queries or diagnostics.</p>
-     *
-     * @return the active {@link Connection}
-     */
-    public Connection getDBConnection() {
-        return db.getDBConnection();
     }
 
     /**
@@ -164,13 +153,7 @@ public class MCEngineEconomyCommon {
      * @return {@code true} if the player exists; otherwise {@code false}
      */
     public boolean checkIfPlayerExists(UUID uuid) {
-        Object result = db.playerExists(uuid.toString());
-        if (result instanceof Boolean) {
-            return (Boolean) result;
-        } else {
-            plugin.getLogger().severe("Error checking if player exists in the database.");
-            return false;
-        }
+        return db.playerExists(uuid.toString());
     }
 
     /**
@@ -203,14 +186,7 @@ public class MCEngineEconomyCommon {
         if (!coinType.matches("coin|copper|silver|gold")) {
             plugin.getLogger().severe("Invalid coin type: " + coinType);
         }
-
-        Object result = db.getCoin(uuid.toString(), coinType);
-        if (result instanceof Double) {
-            return (Double) result;
-        } else {
-            plugin.getLogger().severe("Error retrieving coin balance from the database.");
-            return 0.0;
-        }
+        return db.getCoin(uuid.toString(), coinType);
     }
 
     /**

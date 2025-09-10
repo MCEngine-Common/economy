@@ -1,12 +1,16 @@
 package io.github.mcengine.common.economy.database;
 
-import java.sql.Connection;
-
 /**
  * Storage contract for the MCEngine Economy system.
  * <p>
  * Implementations encapsulate all persistence concerns for player balances and
  * transactions (e.g., MySQL, SQLite, PostgreSQL, MongoDB).
+ * <br>
+ * To support both SQL and NoSQL backends uniformly, this interface exposes:
+ * <ul>
+ *   <li>{@link #executeQuery(String)} for non-return operations (DDL/DML or equivalent)</li>
+ *   <li>{@link #getValue(String, Class)} for single-cell/field lookups</li>
+ * </ul>
  */
 public interface MCEngineEconomyApiDBInterface {
 
@@ -29,20 +33,38 @@ public interface MCEngineEconomyApiDBInterface {
     void disConnection();
 
     /**
+     * Executes a non-returning operation on the underlying data store.
+     * <p>
+     * For SQL engines, this may be raw SQL (e.g., CREATE/INSERT/UPDATE/DELETE).
+     * For NoSQL engines (e.g., MongoDB), this may be a JSON command or DSL string
+     * that the implementation understands.
+     *
+     * @param query the backend-specific command to execute
+     */
+    void executeQuery(String query);
+
+    /**
+     * Executes a query and returns a single value of the requested type.
+     * <p>
+     * For SQL engines, this is typically a {@code SELECT ...} returning one column from one row.
+     * For NoSQL engines, this can be a JSON/DSL command that specifies collection, filter, and field.
+     *
+     * @param query backend-specific query string (SQL or JSON/DSL)
+     * @param type  the desired Java type of the resulting value (e.g., {@code String.class})
+     * @param <T>   generic type parameter
+     * @return the value if found; otherwise {@code null}
+     * @throws IllegalArgumentException if {@code type} is unsupported by the implementation
+     */
+    <T> T getValue(String query, Class<T> type);
+
+    /**
      * Retrieves the balance of a specific coin type for a given player.
      *
      * @param playerUuid the UUID of the player
-     * @param coinType   the logical coin bucket (e.g., "COIN", "COPPER", "SILVER", "GOLD")
+     * @param coinType   the logical coin bucket (e.g., "coin", "copper", "silver", "gold")
      * @return the current balance for the requested coin bucket
      */
     double getCoin(String playerUuid, String coinType);
-
-    /**
-     * Returns the active database connection, if available.
-     *
-     * @return the active {@link Connection}; may be {@code null} if not connected
-     */
-    Connection getDBConnection();
 
     /**
      * Inserts an initial (or upserted) Economy row for the specified player.

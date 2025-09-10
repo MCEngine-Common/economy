@@ -101,6 +101,61 @@ public class MCEngineEconomySQLite implements MCEngineEconomyApiDBInterface {
     }
 
     /**
+     * Executes a non-returning operation against SQLite.
+     * <p>Accepts raw SQL (DDL/DML), e.g.:
+     * <pre>executeQuery("INSERT INTO currency (player_uuid, coin, copper, silver, gold) VALUES (...)");</pre>
+     *
+     * @param query raw SQL statement to execute
+     */
+    @Override
+    public void executeQuery(String query) {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(query);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Error executing query: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Executes a SQL query expected to return a single value (one row, one column),
+     * converting it to the requested type.
+     * <p>Supported types: {@code String, Integer, Long, Double, Boolean}.
+     *
+     * @param query SQL SELECT returning a single column
+     * @param type  desired Java type of the result
+     * @param <T>   generic type parameter
+     * @return the value if present; otherwise {@code null}
+     * @throws IllegalArgumentException if the {@code type} is unsupported
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T getValue(String query, Class<T> type) {
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+            if (rs.next()) {
+                Object value;
+                if (type == String.class) {
+                    value = rs.getString(1);
+                } else if (type == Integer.class) {
+                    value = rs.getInt(1);
+                } else if (type == Long.class) {
+                    value = rs.getLong(1);
+                } else if (type == Double.class) {
+                    value = rs.getDouble(1);
+                } else if (type == Boolean.class) {
+                    value = rs.getBoolean(1);
+                } else {
+                    throw new IllegalArgumentException("Unsupported return type: " + type);
+                }
+                return (T) value;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Error running getValue: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Retrieves the amount of a specified coin type for a player.
      *
      * @param playerUuid player UUID
@@ -120,11 +175,6 @@ public class MCEngineEconomySQLite implements MCEngineEconomyApiDBInterface {
             plugin.getLogger().severe("Error retrieving " + coinType + " for player uuid: " + playerUuid + " - " + e.getMessage());
         }
         return 0.0;
-    }
-
-    /** @return the current {@link Connection} to SQLite */
-    public Connection getDBConnection() {
-        return connection;
     }
 
     /**

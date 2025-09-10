@@ -15,13 +15,13 @@ public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface 
     /** Owning plugin for config and logging. */
     private final Plugin plugin;
 
-    /** DB host. */
+    /** DB host (e.g., "localhost"). */
     private final String dbHost;
 
-    /** DB port. */
+    /** DB port (e.g., "5432"). */
     private final String dbPort;
 
-    /** DB name. */
+    /** DB name/schema. */
     private final String dbName;
 
     /** DB user. */
@@ -30,7 +30,7 @@ public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface 
     /** DB password. */
     private final String dbPassword;
 
-    /** SSL flag. */
+    /** SSL flag (true/false). */
     private final String dbSSL;
 
     /** Active JDBC connection. */
@@ -113,6 +113,45 @@ public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface 
     }
 
     /**
+     * Executes a non-returning command (DDL/DML) on PostgreSQL.
+     *
+     * @param query raw SQL to execute
+     */
+    @Override
+    public void executeQuery(String query) {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(query);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("PostgreSQL executeQuery error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Executes a SQL SELECT expected to return a single value (one row, one column).
+     * Supported types: String, Integer, Long, Double, Boolean.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T getValue(String query, Class<T> type) {
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+            if (rs.next()) {
+                Object value;
+                if (type == String.class) value = rs.getString(1);
+                else if (type == Integer.class) value = rs.getInt(1);
+                else if (type == Long.class) value = rs.getLong(1);
+                else if (type == Double.class) value = rs.getDouble(1);
+                else if (type == Boolean.class) value = rs.getBoolean(1);
+                else throw new IllegalArgumentException("Unsupported return type: " + type);
+                return (T) value;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("PostgreSQL getValue error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Retrieves a specific coin type balance for the given player.
      *
      * @param playerUuid UUID string of the player
@@ -130,12 +169,6 @@ public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface 
             plugin.getLogger().severe("Error retrieving " + coinType + " for player: " + playerUuid + " - " + e.getMessage());
         }
         return 0.0;
-    }
-
-    /** @return the active JDBC connection */
-    @Override
-    public Connection getDBConnection() {
-        return connection;
     }
 
     /**
