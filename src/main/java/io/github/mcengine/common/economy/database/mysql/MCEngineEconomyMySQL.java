@@ -19,22 +19,22 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
     /** Owning plugin for configuration and logging. */
     private final Plugin plugin;
 
-    /** Database host. */
+    /** Database host (e.g., "localhost"). */
     private final String dbHost;
 
-    /** Database port. */
+    /** Database port (e.g., "3306"). */
     private final String dbPort;
 
-    /** Database name. */
+    /** Database/schema name. */
     private final String dbName;
 
-    /** Database user. */
+    /** Database username. */
     private final String dbUser;
 
     /** Database password. */
     private final String dbPassword;
 
-    /** Whether to use SSL. */
+    /** Whether to use SSL when connecting. */
     private final String dbSSL;
 
     /** Active JDBC connection. */
@@ -57,6 +57,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
     }
 
     /** Establishes a connection to the MySQL database. */
+    @Override
     public void connect() {
         String dbUrl = "jdbc:mysql://" + dbHost + ":" + dbPort + "/" + dbName + "?useSSL=" + dbSSL + "&serverTimezone=UTC";
         try {
@@ -76,6 +77,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
      *   <li><b>currency_transaction</b> — transaction history between players</li>
      * </ul>
      */
+    @Override
     public void createTable() {
         String createCurrencyTableSQL = "CREATE TABLE IF NOT EXISTS currency ("
             + "player_uuid CHAR(36) PRIMARY KEY, "
@@ -108,6 +110,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
     }
 
     /** Closes the current database connection. */
+    @Override
     public void disConnection() {
         try {
             if (connection != null && !connection.isClosed()) {
@@ -120,12 +123,52 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
     }
 
     /**
+     * Executes a non-returning command (DDL/DML) on MySQL.
+     *
+     * @param query raw SQL to execute
+     */
+    @Override
+    public void executeQuery(String query) {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(query);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("MySQL executeQuery error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Executes a SQL SELECT expected to return a single value (one row, one column).
+     * Supported types: String, Integer, Long, Double, Boolean.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T getValue(String query, Class<T> type) {
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+            if (rs.next()) {
+                Object value;
+                if (type == String.class) value = rs.getString(1);
+                else if (type == Integer.class) value = rs.getInt(1);
+                else if (type == Long.class) value = rs.getLong(1);
+                else if (type == Double.class) value = rs.getDouble(1);
+                else if (type == Boolean.class) value = rs.getBoolean(1);
+                else throw new IllegalArgumentException("Unsupported return type: " + type);
+                return (T) value;
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("MySQL getValue error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Retrieves the amount of a specified coin type for a player from the database.
      *
      * @param playerUuid the player UUID
      * @param coinType   column name: coin|copper|silver|gold
      * @return the balance value; 0.0 if not found or error
      */
+    @Override
     public double getCoin(String playerUuid, String coinType) {
         String query = "SELECT " + coinType + " FROM currency WHERE player_uuid = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(query)) {
@@ -141,11 +184,6 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
         return 0.0;
     }
 
-    /** @return the active JDBC connection */
-    public Connection getDBConnection() {
-        return connection;
-    }
-
     /**
      * Inserts or updates a player's currency values.
      *
@@ -155,6 +193,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
      * @param silver     silver balance
      * @param gold       gold balance
      */
+    @Override
     public void insertCurrency(String playerUuid, double coin, double copper, double silver, double gold) {
         String query = "INSERT INTO currency (player_uuid, coin, copper, silver, gold) VALUES (?, ?, ?, ?, ?) " +
                        "ON DUPLICATE KEY UPDATE player_uuid = player_uuid;";
@@ -181,6 +220,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
      * @param amount             amount
      * @param notes              optional notes
      */
+    @Override
     public void insertTransaction(String playerUuidSender, String playerUuidReceiver, String currencyType,
                                   String transactionType, double amount, String notes) {
 
@@ -216,6 +256,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
      * @param uuid player UUID
      * @return {@code true} if exists; otherwise {@code false}
      */
+    @Override
     public boolean playerExists(String uuid) {
         String query = "SELECT COUNT(*) FROM currency WHERE player_uuid = ?";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
@@ -238,6 +279,7 @@ public class MCEngineEconomyMySQL implements MCEngineEconomyApiDBInterface {
      * @param coinType   coin|copper|silver|gold
      * @param amt        amount to apply
      */
+    @Override
     public void updateCurrencyValue(String playerUuid, String operator, String coinType, double amt) {
         if (!coinType.matches("coin|copper|silver|gold")) {
             plugin.getLogger().severe("Invalid coin type: " + coinType);
