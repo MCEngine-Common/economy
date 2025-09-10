@@ -211,4 +211,30 @@ public class MCEngineEconomyCommon {
     private void updateCurrency(UUID uuid, String operator, String coinType, double amt) {
         db.updateCurrencyValue(uuid.toString(), operator, coinType, amt);
     }
+
+    // ---------------------------------------------------------------------
+    // Pass-through helpers for add-ons that need direct query access
+    // (e.g., Entity AddOn demo code that calls executeQuery/getValue).
+    // ---------------------------------------------------------------------
+
+    /**
+     * Executes a backend-specific non-returning command (DDL/DML).
+     *
+     * @param query SQL (for SQL backends) or DSL/JSON (for NoSQL backends)
+     */
+    public void executeQuery(String query) {
+        db.executeQuery(query);
+    }
+
+    /**
+     * Executes a backend-specific query that returns a single value.
+     *
+     * @param query SQL (for SQL backends) or DSL/JSON (for NoSQL backends)
+     * @param type  expected Java type of the single result value
+     * @param <T>   generic type
+     * @return the value if present; otherwise {@code null}
+     */
+    public <T> T getValue(String query, Class<T> type) {
+        return db.getValue(query, type);
+    }
 }
