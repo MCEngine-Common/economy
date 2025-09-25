@@ -79,9 +79,9 @@ dependencies {
     compileOnly 'com.google.code.gson:gson:2.13.2'
     compileOnly 'org.mongodb:mongodb-driver-sync:5.6.0'
 
-    compileOnly 'io.github.mcengine:core-api:2025.0.9-25'
-    compileOnly 'io.github.mcengine:economy-api:2025.0.9-25'
-    compileOnly 'io.github.mcengine:hologram-api:2025.0.9-25'
+    compileOnly 'io.github.mcengine:core-api:2025.0.9-26'
+    compileOnly 'io.github.mcengine:economy-api:2025.0.9-26'
+    compileOnly 'io.github.mcengine:hologram-api:2025.0.9-26'
 }
 
 shadowJar {
