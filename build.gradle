@@ -78,9 +78,9 @@ dependencies {
 
     compileOnly 'com.google.code.gson:gson:2.13.2'
 
-    compileOnly 'io.github.mcengine:core-api:2025.1.1-11'
-    compileOnly 'io.github.mcengine:economy-api:2025.1.1-11'
-    compileOnly 'io.github.mcengine:hologram-api:2025.1.1-11'
+    compileOnly 'io.github.mcengine:core-api:2025.1.1-14'
+    compileOnly 'io.github.mcengine:economy-api:2025.1.1-14'
+    compileOnly 'io.github.mcengine:hologram-api:2025.1.1-14'
 }
 
 shadowJar {
