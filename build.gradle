@@ -10,30 +10,78 @@ version = project.properties[project.name + '.version']
 group = 'io.github.mcengine'
 
 ext {
-    // === User credentials (read from environment) ===
-    // Git username used for GitHub Packages auth.
-    user_git_name = System.getenv('USER_GIT_NAME')
-    // GitHub token used for publishing/reading packages; falls back to repository/org tokens where used.
+    /*
+     * === User Credentials ===
+     * Values pulled from environment variables to avoid hard-coding
+     * sensitive information inside the repository.
+     */
+
+    // GitHub account ID for identification in workflows or publishing.
+    user_github_id = System.getenv('USER_GITHUB_ID')
+    // GitHub display name used for metadata and publishing info.
+    user_github_name = System.getenv('USER_GITHUB_NAME')
+    // GitHub personal access token for reading/publishing packages.
     user_github_token = System.getenv('USER_GITHUB_TOKEN')
 
-    // === Organization metadata ===
-    // Optional organization id (not required by build logic but kept for parity with other modules).
+    // GitLab account ID for GitLab-based repositories or registries.
+    user_gitlab_id = System.getenv('USER_GITLAB_ID')
+    // GitLab display name used in build/publish metadata.
+    user_gitlab_name = System.getenv('USER_GITLAB_NAME')
+    // GitLab personal access token for package publishing.
+    user_gitlab_token = System.getenv('USER_GITLAB_TOKEN')
+
+    /*
+     * === Agent Credentials ===
+     * Represents an automated bot account (e.g., CI/CD agent).
+     * Useful for automated publishing, version tagging, or registry access.
+     */
+
+    // GitHub agent account ID for automation.
+    agent_github_id = System.getenv('AGENT_GITHUB_ID')
+    // GitHub agent display name for build metadata.
+    agent_github_name = System.getenv('AGENT_GITHUB_NAME')
+    // GitHub token for the automation agent.
+    agent_github_token = System.getenv('AGENT_GITHUB_TOKEN')
+
+    // GitLab agent account ID for automation.
+    agent_gitlab_id = System.getenv('AGENT_GITLAB_ID')
+    // GitLab agent display name for build metadata.
+    agent_gitlab_name = System.getenv('AGENT_GITLAB_NAME')
+    // GitLab automation token for pipelines or publishing.
+    agent_gitlab_token = System.getenv('AGENT_GITLAB_TOKEN')
+
+    /*
+     * === Organization Metadata ===
+     * Identifies the organization associated with the module.
+     * Optional values fall back to defaults when not provided.
+     */
+
+    // Optional organization identifier for registries or grouping.
     organization_id = System.getenv('ORGANIZATION_ID')
-    // Default org name for this module.
+    // Name of the organization; defaults to "MCEngine-Common".
     organization_name = System.getenv('ORGANIZATION_NAME') ?: 'MCEngine-Common'
-    // Optional org-scoped token for GitHub Packages.
+    // Organization-scoped token for accessing private GitHub Packages.
     organization_token = System.getenv('ORGANIZATION_TOKEN')
 
-    // === Repository metadata ===
-    // Optional repository id.
+    /*
+     * === Repository Metadata ===
+     * Repository-level identifiers used for publishing, naming, and
+     * constructing artifact coordinates.
+     */
+
+    // Optional repository ID for registry mapping.
     repository_id = System.getenv('REPOSITORY_ID')
-    // Default repository name for Economy.
+    // Name of this repository; defaults to "economy".
     repository_name = System.getenv('REPOSITORY_NAME') ?: 'economy'
-    // Optional repo-scoped token for GitHub Packages.
+    // Repository-scoped token for GitHub Packages access.
     repository_token = System.getenv('REPOSITORY_TOKEN')
 
-    // === Project artifact naming ===
-    // Default jar base name for this module when not provided externally.
+    /*
+     * === Artifact Naming ===
+     * Determines the base name for generated JAR files.
+     */
+
+    // Default artifact name when PROJECT_NAME is not provided.
     jarName = System.getenv('PROJECT_NAME') ?: 'MCEngineEconomy'
 }
 
@@ -43,7 +91,7 @@ repositories {
             name = repoName
             url = uri(repoUrl)
             credentials {
-                username = user_git_name
+                username = user_github_name
                 password = user_github_token ?: repository_token ?: organization_token
             }
         }
@@ -51,7 +99,6 @@ repositories {
 
     configureGitHubRepo('MCEngine Core API', 'https://maven.pkg.github.com/MCEngine-API/core')
     configureGitHubRepo('MCEngine Economy API', 'https://maven.pkg.github.com/MCEngine-API/economy')
-    configureGitHubRepo('MCEngine Hologram API', 'https://maven.pkg.github.com/MCEngine-API/hologram')
 
     mavenCentral()
     mavenLocal()
@@ -80,7 +127,6 @@ dependencies {
 
     compileOnly 'io.github.mcengine:core-api:2025.1.1-22'
     compileOnly 'io.github.mcengine:economy-api:2025.1.1-22'
-    compileOnly 'io.github.mcengine:hologram-api:2025.1.1-22'
 }
 
 shadowJar {

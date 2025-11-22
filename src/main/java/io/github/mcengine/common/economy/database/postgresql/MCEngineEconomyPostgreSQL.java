@@ -1,45 +1,29 @@
 package io.github.mcengine.common.economy.database.postgresql;
 
-import io.github.mcengine.common.economy.database.MCEngineEconomyApiDBInterface;
+import io.github.mcengine.common.economy.database.IMCEngineEconomyDB;
 import org.bukkit.plugin.Plugin;
 
 import java.sql.*;
-import java.util.UUID;
 
 /**
- * PostgreSQL implementation of the {@link MCEngineEconomyApiDBInterface}.
- * Manages Economy data storage and transactions using PostgreSQL.
+ * PostgreSQL implementation of {@link IMCEngineEconomyDB}.
+ * Persists player balances in PostgreSQL.
  */
-public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface {
+public class MCEngineEconomyPostgreSQL implements IMCEngineEconomyDB {
 
-    /** Owning plugin for config and logging. */
     private final Plugin plugin;
-
-    /** DB host (e.g., "localhost"). */
     private final String dbHost;
-
-    /** DB port (e.g., "5432"). */
     private final String dbPort;
-
-    /** DB name/schema. */
     private final String dbName;
-
-    /** DB user. */
     private final String dbUser;
-
-    /** DB password. */
     private final String dbPassword;
-
-    /** SSL flag (true/false). */
     private final String dbSSL;
-
-    /** Active JDBC connection. */
     private Connection connection;
 
     /**
-     * Constructs a PostgreSQL Economy manager.
+     * Create a PostgreSQL economy backend.
      *
-     * @param plugin the main Bukkit plugin instance
+     * @param plugin plugin instance
      */
     public MCEngineEconomyPostgreSQL(Plugin plugin) {
         this.plugin = plugin;
@@ -50,10 +34,12 @@ public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface 
         this.dbPassword = plugin.getConfig().getString("database.postgresql.password", "");
         this.dbSSL = plugin.getConfig().getString("database.postgresql.ssl", "false");
         connect();
+        createTable();
     }
 
-    /** Establishes a connection to PostgreSQL. */
-    @Override
+    /**
+     * Establishes a connection to PostgreSQL.
+     */
     public void connect() {
         String dbUrl = "jdbc:postgresql://" + dbHost + ":" + dbPort + "/" + dbName + "?ssl=" + dbSSL;
         try {
@@ -64,194 +50,306 @@ public class MCEngineEconomyPostgreSQL implements MCEngineEconomyApiDBInterface 
         }
     }
 
-    /** Creates the necessary tables (`currency` and `currency_transaction`). */
-    @Override
+    /**
+     * Creates the economy table if it does not exist.
+     */
     public void createTable() {
-        String createCurrencyTableSQL = "CREATE TABLE IF NOT EXISTS currency (" +
-                "player_uuid UUID PRIMARY KEY," +
-                "coin NUMERIC(10,2)," +
-                "copper NUMERIC(10,2)," +
-                "silver NUMERIC(10,2)," +
-                "gold NUMERIC(10,2)" +
+        final String sql = "CREATE TABLE IF NOT EXISTS economy (" +
+                "player_uuid VARCHAR(36) PRIMARY KEY NOT NULL," +
+                "coin BIGINT DEFAULT 0 NOT NULL," +
+                "copper BIGINT DEFAULT 0 NOT NULL," +
+                "silver BIGINT DEFAULT 0 NOT NULL," +
+                "gold BIGINT DEFAULT 0 NOT NULL" +
                 ");";
-
-        String createTransactionTableSQL = "CREATE TABLE IF NOT EXISTS currency_transaction (" +
-                "transaction_id SERIAL PRIMARY KEY," +
-                "player_uuid_sender UUID NOT NULL," +
-                "player_uuid_receiver UUID NOT NULL," +
-                "currency_type VARCHAR(10) NOT NULL CHECK (currency_type IN ('coin', 'copper', 'silver', 'gold'))," +
-                "transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('pay', 'purchase'))," +
-                "amount NUMERIC(10,2) NOT NULL," +
-                "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
-                "notes VARCHAR(255)," +
-                "FOREIGN KEY (player_uuid_sender) REFERENCES currency(player_uuid)," +
-                "FOREIGN KEY (player_uuid_receiver) REFERENCES currency(player_uuid)" +
-                ");";
-
-        try (Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate(createCurrencyTableSQL);
-            plugin.getLogger().info("Table 'currency' created in PostgreSQL.");
-
-            stmt.executeUpdate(createTransactionTableSQL);
-            plugin.getLogger().info("Table 'currency_transaction' created in PostgreSQL.");
+        if (connection == null) return;
+        try (Statement st = connection.createStatement()) {
+            st.execute(sql);
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error creating tables: " + e.getMessage());
+            plugin.getLogger().severe("Failed to create economy table (PostgreSQL): " + e.getMessage());
         }
     }
 
-    /** Closes the active database connection, if any. */
-    @Override
+    /**
+     * Disconnects from PostgreSQL.
+     */
     public void disConnection() {
+        if (connection == null) return;
         try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                plugin.getLogger().info("Disconnected from PostgreSQL database.");
+            connection.close();
+            connection = null;
+            plugin.getLogger().info("PostgreSQL connection closed.");
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to close PostgreSQL connection: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get total coin for UUID.
+     *
+     * @param playerUuid player's UUID string
+     * @return total coin or 0
+     */
+    @Override
+    public int getCoin(String playerUuid) {
+        if (connection == null) return 0;
+        final String sql = "SELECT coin FROM economy WHERE player_uuid = ? LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("coin");
             }
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error while disconnecting from PostgreSQL: " + e.getMessage());
+            plugin.getLogger().severe("Error getting coin (Postgres) for " + playerUuid + ": " + e.getMessage());
         }
+        return 0;
     }
 
     /**
-     * Executes a non-returning command (DDL/DML) on PostgreSQL.
+     * Get specific coin type for UUID.
      *
-     * @param query raw SQL to execute
+     * @param playerUuid player's UUID string
+     * @param coinType   "coin","copper","silver" or "gold"
+     * @return requested balance or 0
      */
     @Override
-    public void executeQuery(String query) {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(query);
-        } catch (SQLException e) {
-            plugin.getLogger().severe("PostgreSQL executeQuery error: " + e.getMessage());
+    public int getCoin(String playerUuid, String coinType) {
+        if (connection == null) return 0;
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
+            plugin.getLogger().severe("Invalid coin type: " + coinType);
+            return 0;
         }
-    }
-
-    /**
-     * Executes a SQL SELECT expected to return a single value (one row, one column).
-     * Supported types: String, Integer, Long, Double, Boolean.
-     */
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T getValue(String query, Class<T> type) {
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-            if (rs.next()) {
-                Object value;
-                if (type == String.class) value = rs.getString(1);
-                else if (type == Integer.class) value = rs.getInt(1);
-                else if (type == Long.class) value = rs.getLong(1);
-                else if (type == Double.class) value = rs.getDouble(1);
-                else if (type == Boolean.class) value = rs.getBoolean(1);
-                else throw new IllegalArgumentException("Unsupported return type: " + type);
-                return (T) value;
+        final String sql = "SELECT " + coinType + " FROM economy WHERE player_uuid = ? LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
             }
         } catch (SQLException e) {
-            plugin.getLogger().severe("PostgreSQL getValue error: " + e.getMessage());
+            plugin.getLogger().severe("Error getting " + coinType + " (Postgres) for " + playerUuid + ": " + e.getMessage());
         }
-        return null;
+        return 0;
     }
 
     /**
-     * Retrieves a specific coin type balance for the given player.
+     * Insert or update the player's row using Postgres ON CONFLICT.
      *
-     * @param playerUuid UUID string of the player
-     * @param coinType   column name (coin, copper, silver, gold)
-     * @return the balance value; 0.0 if not found
+     * @param playerUuid player UUID string
+     * @param coin       total coin
+     * @param copper     copper
+     * @param silver     silver
+     * @param gold       gold
      */
-    @Override
-    public double getCoin(String playerUuid, String coinType) {
-        String query = "SELECT " + coinType + " FROM currency WHERE player_uuid = ?";
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setObject(1, UUID.fromString(playerUuid));
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) return rs.getDouble(1);
+    public void insertCoin(String playerUuid, int coin, int copper, int silver, int gold) {
+        if (connection == null) return;
+        final String sql = "INSERT INTO economy(player_uuid, coin, copper, silver, gold) VALUES(?,?,?,?,?) " +
+                "ON CONFLICT(player_uuid) DO UPDATE SET coin = EXCLUDED.coin, copper = EXCLUDED.copper, silver = EXCLUDED.silver, gold = EXCLUDED.gold";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            ps.setLong(2, coin);
+            ps.setLong(3, copper);
+            ps.setLong(4, silver);
+            ps.setLong(5, gold);
+            ps.executeUpdate();
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error retrieving " + coinType + " for player: " + playerUuid + " - " + e.getMessage());
+            plugin.getLogger().severe("Error inserting/updating economy (Postgres) for " + playerUuid + ": " + e.getMessage());
         }
-        return 0.0;
     }
 
     /**
-     * Inserts a currency record for a player if it does not already exist.
+     * Insert or update a player's currency row. Implements interface contract.
+     *
+     * @param playerUuid UUID string
+     * @param coin       total coin (double in interface; stored as integer)
+     * @param copper     copper
+     * @param silver     silver
+     * @param gold       gold
      */
     @Override
     public void insertCurrency(String playerUuid, double coin, double copper, double silver, double gold) {
-        String query = "INSERT INTO currency (player_uuid, coin, copper, silver, gold) VALUES (?, ?, ?, ?, ?) " +
-                "ON CONFLICT (player_uuid) DO NOTHING;";
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setObject(1, UUID.fromString(playerUuid));
-            pstmt.setDouble(2, coin);
-            pstmt.setDouble(3, copper);
-            pstmt.setDouble(4, silver);
-            pstmt.setDouble(5, gold);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Error inserting currency for player: " + playerUuid + " - " + e.getMessage());
-        }
+        insertCoin(playerUuid, (int) coin, (int) copper, (int) silver, (int) gold);
     }
 
     /**
-     * Inserts a new currency transaction between two players.
-     */
-    @Override
-    public void insertTransaction(String playerUuidSender, String playerUuidReceiver, String currencyType,
-                                  String transactionType, double amount, String notes) {
-        if (!currencyType.matches("coin|copper|silver|gold") || !transactionType.matches("pay|purchase")) {
-            plugin.getLogger().severe("Invalid currency or transaction type.");
-            return;
-        }
-
-        String query = "INSERT INTO currency_transaction (player_uuid_sender, player_uuid_receiver, currency_type, transaction_type, amount, notes) " +
-                "VALUES (?, ?, ?, ?, ?, ?);";
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setObject(1, UUID.fromString(playerUuidSender));
-            pstmt.setObject(2, UUID.fromString(playerUuidReceiver));
-            pstmt.setString(3, currencyType);
-            pstmt.setString(4, transactionType);
-            pstmt.setDouble(5, amount);
-            pstmt.setString(6, notes);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Error inserting transaction: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Checks if a player exists in the {@code currency} table.
+     * Checks whether a player exists.
      *
-     * @param uuid the player's UUID string
-     * @return true if the record exists; false otherwise
+     * @param playerUuid player UUID string
+     * @return true if the player has a row
      */
     @Override
-    public boolean playerExists(String uuid) {
-        String query = "SELECT COUNT(*) FROM currency WHERE player_uuid = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setObject(1, UUID.fromString(uuid));
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) return rs.getInt(1) > 0;
+    public boolean playerExists(String playerUuid) {
+        if (connection == null) return false;
+        final String sql = "SELECT 1 FROM economy WHERE player_uuid = ? LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, uuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error checking player existence: " + e.getMessage());
+            plugin.getLogger().severe("Error checking player existence (Postgres) for " + uuid + ": " + e.getMessage());
         }
         return false;
     }
 
     /**
-     * Updates a player's coin balance using an arithmetic operator.
+     * Adds to the player's default total coin.
+     *
+     * @param playerUuid player's UUID string
+     * @param amount     amount to add
      */
     @Override
-    public void updateCurrencyValue(String playerUuid, String operator, String coinType, double amt) {
-        if (!coinType.matches("coin|copper|silver|gold") || !operator.matches("[+-]")) {
-            plugin.getLogger().severe("Invalid operator or coin type.");
+    public void plusCoin(String playerUuid, int amount) {
+        updateCoinValue(playerUuid, "+", "coin", amount);
+    }
+
+    /**
+     * Adds to a player's specific coin type.
+     *
+     * @param playerUuid player's UUID string
+     * @param coinType   coin type to add to
+     * @param amount     amount to add
+     */
+    @Override
+    public void plusCoin(String playerUuid, String coinType, int amount) {
+        updateCoinValue(playerUuid, "+", coinType == null ? null : coinType.toLowerCase(), amount);
+    }
+
+    /**
+     * Subtracts from the player's default total coin.
+     *
+     * @param playerUuid player's UUID string
+     * @param amount     amount to subtract
+     */
+    @Override
+    public void minusCoin(String playerUuid, int amount) {
+        updateCoinValue(playerUuid, "-", "coin", amount);
+    }
+
+    /**
+     * Subtracts from the player's specific coin type.
+     *
+     * @param playerUuid player's UUID string
+     * @param coinType   coin type to subtract from
+     * @param amount     amount to subtract
+     */
+    @Override
+    public void minusCoin(String playerUuid, String coinType, int amount) {
+        updateCoinValue(playerUuid, "-", coinType == null ? null : coinType.toLowerCase(), amount);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * PostgreSQL implementation: delegates to coinType transfer.
+     */
+    @Override
+    public void sendCoin(String senderUuid, String receiverUuid, int amount) {
+        sendCoin(senderUuid, receiverUuid, "coin", amount);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * PostgreSQL implementation: uses transaction + SELECT ... FOR UPDATE for atomic transfer.
+     */
+    @Override
+    public void sendCoin(String senderUuid, String receiverUuid, String coinType, int amount) {
+        if (connection == null) return;
+        if (amount <= 0) {
+            plugin.getLogger().severe("sendCoin: amount must be positive.");
+            return;
+        }
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
+            plugin.getLogger().severe("sendCoin: invalid coin type: " + coinType);
             return;
         }
 
-        String query = "UPDATE currency SET " + coinType + " = " + coinType + " " + operator + " ? WHERE player_uuid = ?";
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setDouble(1, amt);
-            pstmt.setObject(2, UUID.fromString(playerUuid));
-            pstmt.executeUpdate();
+        try {
+            connection.setAutoCommit(false);
+
+            final String selectForUpdate = "SELECT " + coinType + " FROM economy WHERE player_uuid = ? FOR UPDATE";
+            int senderBalance = 0;
+            try (PreparedStatement ps = connection.prepareStatement(selectForUpdate)) {
+                ps.setString(1, senderUuid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        senderBalance = rs.getInt(1);
+                    } else {
+                        plugin.getLogger().severe("sendCoin: sender does not have an economy row: " + senderUuid);
+                        connection.rollback();
+                        connection.setAutoCommit(true);
+                        return;
+                    }
+                }
+            }
+
+            if (senderBalance < amount) {
+                plugin.getLogger().severe("sendCoin: insufficient funds for " + senderUuid + " (" + senderBalance + " < " + amount + ")");
+                connection.rollback();
+                connection.setAutoCommit(true);
+                return;
+            }
+
+            // ensure receiver exists
+            final String insertIfMissing = "INSERT INTO economy(player_uuid, coin, copper, silver, gold) VALUES(?,0,0,0,0) ON CONFLICT DO NOTHING";
+            try (PreparedStatement ps = connection.prepareStatement(insertIfMissing)) {
+                ps.setString(1, receiverUuid);
+                ps.executeUpdate();
+            }
+
+            // lock receiver
+            try (PreparedStatement ps = connection.prepareStatement(selectForUpdate)) {
+                ps.setString(1, receiverUuid);
+                ps.executeQuery();
+            }
+
+            final String decSql = "UPDATE economy SET " + coinType + " = " + coinType + " - ? WHERE player_uuid = ?";
+            final String incSql = "UPDATE economy SET " + coinType + " = " + coinType + " + ? WHERE player_uuid = ?";
+            try (PreparedStatement dec = connection.prepareStatement(decSql);
+                 PreparedStatement inc = connection.prepareStatement(incSql)) {
+
+                dec.setInt(1, amount);
+                dec.setString(2, senderUuid);
+                dec.executeUpdate();
+
+                inc.setInt(1, amount);
+                inc.setString(2, receiverUuid);
+                inc.executeUpdate();
+            }
+
+            connection.commit();
+            connection.setAutoCommit(true);
+            plugin.getLogger().info("sendCoin: transferred " + amount + " " + coinType + " from " + senderUuid + " to " + receiverUuid);
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error updating currency for player: " + playerUuid + " - " + e.getMessage());
+            try { connection.rollback(); connection.setAutoCommit(true); } catch (SQLException ex) { /* ignore */ }
+            plugin.getLogger().severe("sendCoin (Postgres) failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Updates a numeric column by adding or subtracting an amount.
+     *
+     * @param playerUuid player uuid string
+     * @param operator   "+" or "-"
+     * @param coinType   column name
+     * @param amt        amount
+     */
+    public void updateCoinValue(String playerUuid, String operator, String coinType, int amt) {
+        if (connection == null) return;
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
+            plugin.getLogger().severe("Invalid coin type: " + coinType);
+            return;
+        }
+        if (!"+".equals(operator) && !"-".equals(operator)) {
+            plugin.getLogger().severe("Invalid operator: " + operator);
+            return;
+        }
+        final String sql = "UPDATE economy SET " + coinType + " = " + coinType + " " + operator + " ? WHERE player_uuid = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, amt);
+            ps.setString(2, playerUuid);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to update " + coinType + " (Postgres) for " + playerUuid + ": " + e.getMessage());
         }
     }
 }
