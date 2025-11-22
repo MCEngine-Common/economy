@@ -13,6 +13,8 @@ ext {
     // === User credentials (read from environment) ===
     // Git username used for GitHub Packages auth.
     user_git_name = System.getenv('USER_GIT_NAME')
+
+    user_github_name = System.getenv('USER_GITHUB_NAME')
     // GitHub token used for publishing/reading packages; falls back to repository/org tokens where used.
     user_github_token = System.getenv('USER_GITHUB_TOKEN')
 
@@ -43,7 +45,7 @@ repositories {
             name = repoName
             url = uri(repoUrl)
             credentials {
-                username = user_git_name
+                username = user_github_name
                 password = user_github_token ?: repository_token ?: organization_token
             }
         }
@@ -51,7 +53,6 @@ repositories {
 
     configureGitHubRepo('MCEngine Core API', 'https://maven.pkg.github.com/MCEngine-API/core')
     configureGitHubRepo('MCEngine Economy API', 'https://maven.pkg.github.com/MCEngine-API/economy')
-    configureGitHubRepo('MCEngine Hologram API', 'https://maven.pkg.github.com/MCEngine-API/hologram')
 
     mavenCentral()
     mavenLocal()
