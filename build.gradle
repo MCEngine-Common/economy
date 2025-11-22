@@ -10,32 +10,61 @@ version = project.properties[project.name + '.version']
 group = 'io.github.mcengine'
 
 ext {
-    // === User credentials (read from environment) ===
-    // Git username used for GitHub Packages auth.
+    /*
+     * === User Credentials ===
+     * Values pulled from environment variables to avoid hard-coding
+     * sensitive information inside the repository.
+     */
+
+    // Git username used for authentication with Git-based services.
     user_git_name = System.getenv('USER_GIT_NAME')
 
+    // GitHub account ID for identification in workflows or publishing.
+    user_github_id = System.getenv('USER_GITHUB_ID')
+    // GitHub display name used for metadata and publishing info.
     user_github_name = System.getenv('USER_GITHUB_NAME')
-    // GitHub token used for publishing/reading packages; falls back to repository/org tokens where used.
+    // GitHub personal access token for reading/publishing packages.
     user_github_token = System.getenv('USER_GITHUB_TOKEN')
 
-    // === Organization metadata ===
-    // Optional organization id (not required by build logic but kept for parity with other modules).
+    // GitLab account ID for GitLab-based repositories or registries.
+    user_gitlab_id = System.getenv('USER_GITLAB_ID')
+    // GitLab display name used in build/publish metadata.
+    user_gitlab_name = System.getenv('USER_GITLAB_NAME')
+    // GitLab personal access token for package publishing.
+    user_gitlab_token = System.getenv('USER_GITLAB_TOKEN')
+
+    /*
+     * === Organization Metadata ===
+     * Identifies the organization associated with the module.
+     * Optional values fall back to defaults when not provided.
+     */
+
+    // Optional organization identifier for registries or grouping.
     organization_id = System.getenv('ORGANIZATION_ID')
-    // Default org name for this module.
+    // Name of the organization; defaults to "MCEngine-Common".
     organization_name = System.getenv('ORGANIZATION_NAME') ?: 'MCEngine-Common'
-    // Optional org-scoped token for GitHub Packages.
+    // Organization-scoped token for accessing private GitHub Packages.
     organization_token = System.getenv('ORGANIZATION_TOKEN')
 
-    // === Repository metadata ===
-    // Optional repository id.
+    /*
+     * === Repository Metadata ===
+     * Repository-level identifiers used for publishing, naming, and
+     * constructing artifact coordinates.
+     */
+
+    // Optional repository ID for registry mapping.
     repository_id = System.getenv('REPOSITORY_ID')
-    // Default repository name for Economy.
+    // Name of this repository; defaults to "economy".
     repository_name = System.getenv('REPOSITORY_NAME') ?: 'economy'
-    // Optional repo-scoped token for GitHub Packages.
+    // Repository-scoped token for GitHub Packages access.
     repository_token = System.getenv('REPOSITORY_TOKEN')
 
-    // === Project artifact naming ===
-    // Default jar base name for this module when not provided externally.
+    /*
+     * === Artifact Naming ===
+     * Determines the base name for generated JAR files.
+     */
+
+    // Default artifact name when PROJECT_NAME is not provided.
     jarName = System.getenv('PROJECT_NAME') ?: 'MCEngineEconomy'
 }
 
