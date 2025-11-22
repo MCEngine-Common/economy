@@ -16,9 +16,6 @@ ext {
      * sensitive information inside the repository.
      */
 
-    // Git username used for authentication with Git-based services.
-    user_git_name = System.getenv('USER_GIT_NAME')
-
     // GitHub account ID for identification in workflows or publishing.
     user_github_id = System.getenv('USER_GITHUB_ID')
     // GitHub display name used for metadata and publishing info.
@@ -32,6 +29,26 @@ ext {
     user_gitlab_name = System.getenv('USER_GITLAB_NAME')
     // GitLab personal access token for package publishing.
     user_gitlab_token = System.getenv('USER_GITLAB_TOKEN')
+
+    /*
+     * === Agent Credentials ===
+     * Represents an automated bot account (e.g., CI/CD agent).
+     * Useful for automated publishing, version tagging, or registry access.
+     */
+
+    // GitHub agent account ID for automation.
+    agent_github_id = System.getenv('AGENT_GITHUB_ID')
+    // GitHub agent display name for build metadata.
+    agent_github_name = System.getenv('AGENT_GITHUB_NAME')
+    // GitHub token for the automation agent.
+    agent_github_token = System.getenv('AGENT_GITHUB_TOKEN')
+
+    // GitLab agent account ID for automation.
+    agent_gitlab_id = System.getenv('AGENT_GITLAB_ID')
+    // GitLab agent display name for build metadata.
+    agent_gitlab_name = System.getenv('AGENT_GITLAB_NAME')
+    // GitLab automation token for pipelines or publishing.
+    agent_gitlab_token = System.getenv('AGENT_GITLAB_TOKEN')
 
     /*
      * === Organization Metadata ===
