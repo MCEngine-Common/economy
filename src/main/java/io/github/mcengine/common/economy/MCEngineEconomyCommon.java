@@ -2,239 +2,157 @@ package io.github.mcengine.common.economy;
 
 import java.util.UUID;
 
-import io.github.mcengine.api.core.util.MCEngineCoreApiDispatcher;
-import io.github.mcengine.common.economy.database.MCEngineEconomyApiDBInterface;
+import io.github.mcengine.common.economy.database.IMCEngineEconomyDB;
 import io.github.mcengine.common.economy.database.mysql.MCEngineEconomyMySQL;
 import io.github.mcengine.common.economy.database.sqlite.MCEngineEconomySQLite;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.TabCompleter;
+import io.github.mcengine.common.economy.database.postgresql.MCEngineEconomyPostgreSQL;
 import org.bukkit.plugin.Plugin;
 
 /**
- * Provides common Economy operations for player balances and transactions.
+ * Provides a high-level Economy API wrapping the selected database backend.
  * <p>
- * Supports multiple storage backends (MySQL, SQLite), exposes helpers for
- * initializing player data, checking existence, mutating balances, and
- * recording transactions.
+ * Handles initialization, player balance queries, and balance mutations.
+ * This class delegates directly to {@link IMCEngineEconomyDB} using player UUID strings.
  */
 public class MCEngineEconomyCommon {
 
-    /** Singleton instance of the Economy common API. */
+    /** Singleton instance of the Economy API. */
     private static MCEngineEconomyCommon instance;
 
-    /** The Bukkit plugin that owns and configures this API. */
-    private Plugin plugin;
+    /** Bukkit plugin providing configuration and logger. */
+    private final Plugin plugin;
+
+    /** Selected backend implementing IMCEngineEconomyDB. */
+    private final IMCEngineEconomyDB db;
 
     /**
-     * Database contract implementation (e.g., MySQL/SQLite) that persists
-     * balances and transactions for the Economy system.
-     */
-    private MCEngineEconomyApiDBInterface db;
-
-    /** Internal command dispatcher for namespaced commands and tabs. */
-    private final MCEngineCoreApiDispatcher dispatcher;
-
-    /**
-     * Constructs the Economy API instance and initializes the configured database.
+     * Constructs the Economy manager and selects a database backend based on plugin config.
      *
-     * @param plugin  the Bukkit plugin instance
+     * @param plugin Bukkit plugin instance
      */
     public MCEngineEconomyCommon(Plugin plugin) {
         instance = this;
         this.plugin = plugin;
-        this.dispatcher = new MCEngineCoreApiDispatcher();
 
         String sqlType = plugin.getConfig().getString("database.type", "sqlite").toLowerCase();
-        switch (sqlType.toLowerCase()) {
+
+        switch (sqlType) {
             case "mysql":
                 this.db = new MCEngineEconomyMySQL(plugin);
                 break;
+
+            case "postgresql":
+                this.db = new MCEngineEconomyPostgreSQL(plugin);
+                break;
+
             case "sqlite":
                 this.db = new MCEngineEconomySQLite(plugin);
                 break;
+
             default:
-                plugin.getLogger().severe("Unsupported SQL type: " + sqlType);
+                plugin.getLogger().severe("Unsupported SQL type: " + sqlType + " — falling back to SQLite");
+                this.db = new MCEngineEconomySQLite(plugin); // fallback
+                break;
         }
     }
 
     /**
-     * Gets the global API singleton instance.
+     * Gets the global Economy API instance.
      *
-     * @return the {@link MCEngineEconomyCommon} instance
+     * @return singleton instance
      */
     public static MCEngineEconomyCommon getApi() {
         return instance;
     }
 
     /**
-     * Gets the Bukkit plugin instance linked to this API.
+     * Gets the plugin instance associated with this API.
      *
-     * @return the plugin instance
+     * @return plugin
      */
     public Plugin getPlugin() {
         return plugin;
     }
 
     /**
-     * Registers a command namespace (e.g., "economy") for this plugin's dispatcher.
+     * Initializes a player's currency entry with default values.
      *
-     * @param namespace unique namespace for commands
-     */
-    public void registerNamespace(String namespace) {
-        dispatcher.registerNamespace(namespace);
-    }
-
-    /**
-     * Binds a Bukkit command (like /economy) to the internal dispatcher.
-     *
-     * @param namespace       the command namespace
-     * @param commandExecutor fallback executor
-     */
-    public void bindNamespaceToCommand(String namespace, CommandExecutor commandExecutor) {
-        dispatcher.bindNamespaceToCommand(namespace, commandExecutor);
-    }
-
-    /**
-     * Registers a subcommand under the specified namespace.
-     *
-     * @param namespace the command namespace
-     * @param name      subcommand label
-     * @param executor  subcommand logic
-     */
-    public void registerSubCommand(String namespace, String name, CommandExecutor executor) {
-        dispatcher.registerSubCommand(namespace, name, executor);
-    }
-
-    /**
-     * Registers a tab completer for a subcommand under the specified namespace.
-     *
-     * @param namespace    the command namespace
-     * @param subcommand   subcommand label
-     * @param tabCompleter tab completion logic
-     */
-    public void registerSubTabCompleter(String namespace, String subcommand, TabCompleter tabCompleter) {
-        dispatcher.registerSubTabCompleter(namespace, subcommand, tabCompleter);
-    }
-
-    /**
-     * Gets the dispatcher instance to assign as command executor and tab completer.
-     *
-     * @param namespace command namespace
-     * @return command executor for Bukkit command registration
-     */
-    public CommandExecutor getDispatcher(String namespace) {
-        return dispatcher.getDispatcher(namespace);
-    }
-
-    /**
-     * Initializes player data in the database with default currency values.
-     *
-     * @param uuid the unique identifier of the player
+     * @param uuid player UUID
      */
     public void initPlayerData(UUID uuid) {
-        db.insertCurrency(uuid.toString(), 0.0, 0.0, 0.0, 0.0);
+        db.insertCurrency(uuid.toString(), 0, 0, 0, 0);
     }
 
     /**
-     * Adds a specified amount of a given type of coin to a player's account.
+     * Gets a player's total coin balance.
      *
-     * @param uuid the unique identifier of the player
-     * @param coinType the coin bucket (coin, copper, silver, gold)
-     * @param amt the amount to add
+     * @param uuid player UUID
+     * @return total coin balance
      */
-    public void addCoin(UUID uuid, String coinType, double amt) {
-        updateCurrency(uuid, "+", coinType, amt);
+    public int getCoin(UUID uuid) {
+        return db.getCoin(uuid.toString());
     }
 
     /**
-     * Checks if a player exists in the database.
+     * Gets a player's specific coin type.
      *
-     * @param uuid the unique identifier of the player
-     * @return {@code true} if the player exists; otherwise {@code false}
+     * @param uuid     player UUID
+     * @param coinType coin type string ("coin", "copper", "silver", "gold")
+     * @return amount of the coin type
      */
-    public boolean checkIfPlayerExists(UUID uuid) {
-        return db.playerExists(uuid.toString());
-    }
-
-    /**
-     * Records a transaction between two players in the database.
-     *
-     * @param playerUuidSender   sender UUID
-     * @param playerUuidReceiver receiver UUID
-     * @param currencyType       coin bucket (coin|copper|silver|gold)
-     * @param transactionType    transaction type (e.g., "pay", "purchase")
-     * @param amount             amount transferred
-     * @param notes              optional notes for auditing
-     */
-    public void createTransaction(UUID playerUuidSender, UUID playerUuidReceiver, String currencyType, String transactionType, double amount, String notes) {
-        db.insertTransaction(playerUuidSender.toString(), playerUuidReceiver.toString(), currencyType, transactionType, amount, notes);
-    }
-
-    /** Disconnects from the database. */
-    public void disConnect() {
-        db.disConnection();
-    }
-
-    /**
-     * Retrieves the balance of a specified coin type for a player.
-     *
-     * @param uuid the player UUID
-     * @param coinType one of coin|copper|silver|gold
-     * @return the balance value (0.0 if not found or error)
-     */
-    public double getCoin(UUID uuid, String coinType) {
-        if (!coinType.matches("coin|copper|silver|gold")) {
-            plugin.getLogger().severe("Invalid coin type: " + coinType);
-        }
+    public int getCoin(UUID uuid, String coinType) {
         return db.getCoin(uuid.toString(), coinType);
     }
 
     /**
-     * Deducts a specified amount of a given type of coin from a player's account.
+     * Adds currency to a player's default coin.
      *
-     * @param uuid the player UUID
-     * @param coinType the coin bucket
-     * @param amt amount to deduct
+     * @param uuid player UUID
+     * @param amt  amount to add
      */
-    public void minusCoin(UUID uuid, String coinType, double amt) {
-        updateCurrency(uuid, "-", coinType, amt);
+    public void plusCoin(UUID uuid, int amt) {
+        db.plusCoin(uuid.toString(), amt);
     }
 
     /**
-     * Updates the currency value for a player with a specific operation.
+     * Adds currency to a specific coin type.
      *
-     * @param uuid the player UUID
-     * @param operator "+" to add, "-" to subtract
-     * @param coinType the coin bucket to mutate
-     * @param amt the amount to apply
+     * @param uuid     player UUID
+     * @param coinType coin type string
+     * @param amt      amount to add
      */
-    private void updateCurrency(UUID uuid, String operator, String coinType, double amt) {
-        db.updateCurrencyValue(uuid.toString(), operator, coinType, amt);
-    }
-
-    // ---------------------------------------------------------------------
-    // Pass-through helpers for add-ons that need direct query access
-    // (e.g., Entity AddOn demo code that calls executeQuery/getValue).
-    // ---------------------------------------------------------------------
-
-    /**
-     * Executes a backend-specific non-returning command (DDL/DML).
-     *
-     * @param query SQL (for SQL backends) or DSL/JSON (for NoSQL backends)
-     */
-    public void executeQuery(String query) {
-        db.executeQuery(query);
+    public void plusCoin(UUID uuid, String coinType, int amt) {
+        db.plusCoin(uuid.toString(), coinType, amt);
     }
 
     /**
-     * Executes a backend-specific query that returns a single value.
+     * Subtracts currency from a player's default coin.
      *
-     * @param query SQL (for SQL backends) or DSL/JSON (for NoSQL backends)
-     * @param type  expected Java type of the single result value
-     * @param <T>   generic type
-     * @return the value if present; otherwise {@code null}
+     * @param uuid player UUID
+     * @param amt  amount to subtract
      */
-    public <T> T getValue(String query, Class<T> type) {
-        return db.getValue(query, type);
+    public void minusCoin(UUID uuid, int amt) {
+        db.minusCoin(uuid.toString(), amt);
+    }
+
+    /**
+     * Subtracts currency from a specific coin type.
+     *
+     * @param uuid     player UUID
+     * @param coinType coin type string
+     * @param amt      amount to subtract
+     */
+    public void minusCoin(UUID uuid, String coinType, int amt) {
+        db.minusCoin(uuid.toString(), coinType, amt);
+    }
+
+    /**
+     * Checks whether a player has an economy entry.
+     *
+     * @param uuid player UUID
+     * @return true if exists in database
+     */
+    public boolean checkIfPlayerExists(UUID uuid) {
+        return db.playerExists(uuid.toString());
     }
 }

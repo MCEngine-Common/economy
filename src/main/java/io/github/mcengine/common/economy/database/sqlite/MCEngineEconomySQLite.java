@@ -1,34 +1,24 @@
 package io.github.mcengine.common.economy.database.sqlite;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-
-import io.github.mcengine.common.economy.database.MCEngineEconomyApiDBInterface;
+import io.github.mcengine.common.economy.database.IMCEngineEconomyDB;
 import org.bukkit.plugin.Plugin;
 
+import java.sql.*;
+
 /**
- * SQLite implementation of {@link MCEngineEconomyApiDBInterface}.
- * Stores Economy balances and transactions in a local SQLite database.
+ * SQLite implementation of {@link IMCEngineEconomyDB}.
+ * Stores per-player balances in a local SQLite database file.
  */
-public class MCEngineEconomySQLite implements MCEngineEconomyApiDBInterface {
+public class MCEngineEconomySQLite implements IMCEngineEconomyDB {
 
-    /** Owning plugin for configuration and logging. */
     private final Plugin plugin;
-
-    /** Relative/absolute DB path under the plugin's data folder. */
     private final String dbPath;
-
-    /** Active JDBC connection. */
     private Connection connection;
 
     /**
-     * Initializes the SQLite storage with the configured database path.
+     * Construct the SQLite storage handler.
      *
-     * @param plugin the plugin instance
+     * @param plugin owning plugin (used for config, data folder and logging)
      */
     public MCEngineEconomySQLite(Plugin plugin) {
         this.plugin = plugin;
@@ -37,7 +27,9 @@ public class MCEngineEconomySQLite implements MCEngineEconomyApiDBInterface {
         createTable();
     }
 
-    /** Establishes a connection to the SQLite database. */
+    /**
+     * Establishes a JDBC connection to the SQLite database file.
+     */
     public void connect() {
         try {
             String fullPath = plugin.getDataFolder().getAbsolutePath() + "/" + dbPath;
@@ -49,228 +41,217 @@ public class MCEngineEconomySQLite implements MCEngineEconomyApiDBInterface {
     }
 
     /**
-     * Creates the 'currency' and 'currency_transaction' tables if they do not exist.
-     * <p>
-     * Tables:
-     * <ul>
-     *   <li><b>currency</b> — per-player balances</li>
-     *   <li><b>currency_transaction</b> — transaction history</li>
-     * </ul>
+     * Creates the economy table if it does not exist.
      */
     public void createTable() {
-        String createCurrencyTableSQL = "CREATE TABLE IF NOT EXISTS currency ("
-            + "player_uuid CHAR(36) PRIMARY KEY, "
-            + "coin DECIMAL(10,2), "
-            + "copper DECIMAL(10,2), "
-            + "silver DECIMAL(10,2), "
-            + "gold DECIMAL(10,2));";
-
-        String createTransactionTableSQL = "CREATE TABLE IF NOT EXISTS currency_transaction ("
-            + "transaction_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-            + "player_uuid_sender CHAR(36) NOT NULL, "
-            + "player_uuid_receiver CHAR(36) NOT NULL, "
-            + "currency_type TEXT CHECK(currency_type IN ('coin', 'copper', 'silver', 'gold')) NOT NULL, "
-            + "transaction_type TEXT CHECK(transaction_type IN ('pay', 'purchase')) NOT NULL, "
-            + "amount DECIMAL(10,2) NOT NULL, "
-            + "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-            + "notes VARCHAR(255), "
-            + "FOREIGN KEY (player_uuid_sender) REFERENCES currency(player_uuid), "
-            + "FOREIGN KEY (player_uuid_receiver) REFERENCES currency(player_uuid));";
-
+        final String sql = "CREATE TABLE IF NOT EXISTS economy (" +
+                "player_uuid VARCHAR(36) PRIMARY KEY NOT NULL," +
+                "coin BIGINT DEFAULT 0 NOT NULL," +
+                "copper BIGINT DEFAULT 0 NOT NULL," +
+                "silver BIGINT DEFAULT 0 NOT NULL," +
+                "gold BIGINT DEFAULT 0 NOT NULL" +
+                ");";
+        if (connection == null) return;
         try (Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate(createCurrencyTableSQL);
-            plugin.getLogger().info("Table 'currency' created successfully in SQLite database.");
-
-            stmt.executeUpdate(createTransactionTableSQL);
-            plugin.getLogger().info("Table 'currency_transaction' created successfully in SQLite database.");
+            stmt.execute(sql);
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error creating tables: " + e.getMessage());
+            plugin.getLogger().severe("Failed to create economy table (SQLite): " + e.getMessage());
         }
     }
 
-    /** Disconnects from the SQLite database. */
+    /**
+     * Disconnects from the SQLite database.
+     */
     public void disConnection() {
+        if (connection == null) return;
         try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                plugin.getLogger().info("Disconnected from SQLite database.");
-            }
+            connection.close();
+            connection = null;
+            plugin.getLogger().info("SQLite connection closed.");
         } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to disconnect from SQLite database: " + e.getMessage());
+            plugin.getLogger().severe("Failed to close SQLite connection: " + e.getMessage());
         }
     }
 
     /**
-     * Executes a non-returning operation against SQLite.
-     * <p>Accepts raw SQL (DDL/DML), e.g.:
-     * <pre>executeQuery("INSERT INTO currency (player_uuid, coin, copper, silver, gold) VALUES (...)");</pre>
+     * Returns the player's total coin balance by UUID.
      *
-     * @param query raw SQL statement to execute
+     * @param playerUuid player's UUID string
+     * @return total coin balance, or 0 if not found or on error
      */
     @Override
-    public void executeQuery(String query) {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(query);
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Error executing query: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Executes a SQL query expected to return a single value (one row, one column),
-     * converting it to the requested type.
-     * <p>Supported types: {@code String, Integer, Long, Double, Boolean}.
-     *
-     * @param query SQL SELECT returning a single column
-     * @param type  desired Java type of the result
-     * @param <T>   generic type parameter
-     * @return the value if present; otherwise {@code null}
-     * @throws IllegalArgumentException if the {@code type} is unsupported
-     */
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T getValue(String query, Class<T> type) {
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-            if (rs.next()) {
-                Object value;
-                if (type == String.class) {
-                    value = rs.getString(1);
-                } else if (type == Integer.class) {
-                    value = rs.getInt(1);
-                } else if (type == Long.class) {
-                    value = rs.getLong(1);
-                } else if (type == Double.class) {
-                    value = rs.getDouble(1);
-                } else if (type == Boolean.class) {
-                    value = rs.getBoolean(1);
-                } else {
-                    throw new IllegalArgumentException("Unsupported return type: " + type);
-                }
-                return (T) value;
+    public int getCoin(String playerUuid) {
+        if (connection == null) return 0;
+        final String sql = "SELECT coin FROM economy WHERE player_uuid = ? LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("coin");
             }
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error running getValue: " + e.getMessage());
+            plugin.getLogger().severe("Error getting coin (SQLite) for " + playerUuid + ": " + e.getMessage());
         }
-        return null;
+        return 0;
     }
 
     /**
-     * Retrieves the amount of a specified coin type for a player.
+     * Returns the player's specific coin-type balance by UUID.
+     *
+     * @param playerUuid player's UUID string
+     * @param coinType   "coin", "copper", "silver" or "gold"
+     * @return requested balance, or 0 if not found/invalid/error
+     */
+    @Override
+    public int getCoin(String playerUuid, String coinType) {
+        if (connection == null) return 0;
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
+            plugin.getLogger().severe("Invalid coin type requested: " + coinType);
+            return 0;
+        }
+        final String sql = "SELECT " + coinType + " FROM economy WHERE player_uuid = ? LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Error getting " + coinType + " (SQLite) for " + playerUuid + ": " + e.getMessage());
+        }
+        return 0;
+    }
+
+    /**
+     * Inserts or upserts a player's economy row using SQLite upsert semantics.
      *
      * @param playerUuid player UUID
-     * @param coinType   column name: coin|copper|silver|gold
-     * @return the balance value (0.0 if not found/error)
+     * @param coin       total coin
+     * @param copper     copper coin
+     * @param silver     silver coin
+     * @param gold       gold coin
      */
-    public double getCoin(String playerUuid, String coinType) {
-        String query = "SELECT " + coinType + " FROM currency WHERE player_uuid = ?";
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setString(1, playerUuid);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getDouble(1);
-                }
-            }
+    public void insertCoin(String playerUuid, int coin, int copper, int silver, int gold) {
+        if (connection == null) return;
+        final String sql = "INSERT INTO economy(player_uuid, coin, copper, silver, gold) " +
+                "VALUES(?,?,?,?,?) " +
+                "ON CONFLICT(player_uuid) DO UPDATE SET coin = excluded.coin, copper = excluded.copper, silver = excluded.silver, gold = excluded.gold;";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            ps.setLong(2, coin);
+            ps.setLong(3, copper);
+            ps.setLong(4, silver);
+            ps.setLong(5, gold);
+            ps.executeUpdate();
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error retrieving " + coinType + " for player uuid: " + playerUuid + " - " + e.getMessage());
-        }
-        return 0.0;
-    }
-
-    /**
-     * Inserts currency information for a player (no-op if player exists).
-     */
-    public void insertCurrency(String playerUuid, double coin, double copper, double silver, double gold) {
-        String query = "INSERT INTO currency (player_uuid, coin, copper, silver, gold) VALUES (?, ?, ?, ?, ?) " +
-                       "ON CONFLICT(player_uuid) DO NOTHING;";
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setString(1, playerUuid);
-            pstmt.setDouble(2, coin);
-            pstmt.setDouble(3, copper);
-            pstmt.setDouble(4, silver);
-            pstmt.setDouble(5, gold);
-            pstmt.executeUpdate();
-            plugin.getLogger().info("Currency information added for player uuid: " + playerUuid);
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Error inserting currency for player uuid: " + playerUuid + " - " + e.getMessage());
+            plugin.getLogger().severe("Error inserting/updating economy (SQLite) for " + playerUuid + ": " + e.getMessage());
         }
     }
 
     /**
-     * Inserts a transaction record into the currency_transaction table.
-     */
-    public void insertTransaction(String playerUuidSender, String playerUuidReceiver, String currencyType,
-                                  String transactionType, double amount, String notes) {
-
-        if (!currencyType.matches("coin|copper|silver|gold")) {
-            plugin.getLogger().severe("Invalid currency type: " + currencyType);
-        }
-        if (!transactionType.matches("pay|purchase")) {
-            plugin.getLogger().severe("Invalid transaction type: " + transactionType);
-        }
-
-        String query = "INSERT INTO currency_transaction (player_uuid_sender, player_uuid_receiver, currency_type, "
-        + "transaction_type, amount, notes) VALUES (?, ?, ?, ?, ?, ?);";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setString(1, playerUuidSender);
-            pstmt.setString(2, playerUuidReceiver);
-            pstmt.setString(3, currencyType);
-            pstmt.setString(4, transactionType);
-            pstmt.setDouble(5, amount);
-            pstmt.setString(6, notes);
-
-            pstmt.executeUpdate();
-            plugin.getLogger().info("Transaction successfully recorded between "
-            + playerUuidSender + " and " + playerUuidReceiver);
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Error inserting transaction: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Checks if a player with the specified UUID exists in the currency table.
+     * Inserts or updates a player's currency row. Implements interface contract.
      *
-     * @param uuid the UUID of the player to check
-     * @return {@code true} if a player with the specified UUID exists; {@code false} otherwise
+     * @param playerUuid UUID string
+     * @param coin       total coin (double in interface; stored as integer)
+     * @param copper     copper (double in interface; stored as integer)
+     * @param silver     silver (double in interface; stored as integer)
+     * @param gold       gold (double in interface; stored as integer)
      */
-    public boolean playerExists(String uuid) {
-        String query = "SELECT COUNT(*) FROM currency WHERE player_uuid = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, uuid);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1) > 0;
+    @Override
+    public void insertCurrency(String playerUuid, double coin, double copper, double silver, double gold) {
+        insertCoin(playerUuid, (int) coin, (int) copper, (int) silver, (int) gold);
+    }
+
+    /**
+     * Checks whether a player exists in the table.
+     *
+     * @param playerUuid player UUID string
+     * @return true if a row exists for the player; false otherwise
+     */
+    @Override
+    public boolean playerExists(String playerUuid) {
+        if (connection == null) return false;
+        final String sql = "SELECT 1 FROM economy WHERE player_uuid = ? LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, uuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            plugin.getLogger().severe("Error checking player existence (SQLite) for " + uuid + ": " + e.getMessage());
         }
         return false;
     }
 
     /**
-     * Updates a specific type of currency for a player.
+     * Adds to the player's default total coin.
      *
-     * @param playerUuid player UUID
-     * @param operator   '+' or '-'
-     * @param coinType   coin|copper|silver|gold
+     * @param playerUuid player's UUID string
+     * @param amount     amount to add
+     */
+    @Override
+    public void plusCoin(String playerUuid, int amount) {
+        updateCoinValue(playerUuid, "+", "coin", amount);
+    }
+
+    /**
+     * Adds to a player's specific coin type.
+     *
+     * @param playerUuid player's UUID string
+     * @param coinType   coin type to add to
+     * @param amount     amount to add
+     */
+    @Override
+    public void plusCoin(String playerUuid, String coinType, int amount) {
+        updateCoinValue(playerUuid, "+", coinType == null ? null : coinType.toLowerCase(), amount);
+    }
+
+    /**
+     * Subtracts from the player's default total coin.
+     *
+     * @param playerUuid player's UUID string
+     * @param amount     amount to subtract
+     */
+    @Override
+    public void minusCoin(String playerUuid, int amount) {
+        updateCoinValue(playerUuid, "-", "coin", amount);
+    }
+
+    /**
+     * Subtracts from the player's specific coin type.
+     *
+     * @param playerUuid player's UUID string
+     * @param coinType   coin type to subtract from
+     * @param amount     amount to subtract
+     */
+    @Override
+    public void minusCoin(String playerUuid, String coinType, int amount) {
+        updateCoinValue(playerUuid, "-", coinType == null ? null : coinType.toLowerCase(), amount);
+    }
+
+    /**
+     * Updates a numeric column by adding or subtracting an amount.
+     *
+     * @param playerUuid player UUID string
+     * @param operator   "+" or "-"
+     * @param coinType   one of "coin","copper","silver","gold"
      * @param amt        amount to apply
      */
-    public void updateCurrencyValue(String playerUuid, String operator, String coinType, double amt) {
-        if (!coinType.matches("coin|copper|silver|gold")) {
+    public void updateCoinValue(String playerUuid, String operator, String coinType, int amt) {
+        if (connection == null) return;
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
             plugin.getLogger().severe("Invalid coin type: " + coinType);
+            return;
         }
-
-        String query = "UPDATE currency SET " + coinType + " = " + coinType + " " + operator
-        + " ? WHERE player_uuid = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setDouble(1, amt);
-            pstmt.setString(2, playerUuid);
-            pstmt.executeUpdate();
-            plugin.getLogger().info("Updated " + coinType + " for player uuid: " + playerUuid);
+        if (!"+".equals(operator) && !"-".equals(operator)) {
+            plugin.getLogger().severe("Invalid operator: " + operator);
+            return;
+        }
+        final String sql = "UPDATE economy SET " + coinType + " = " + coinType + " " + operator + " ? WHERE player_uuid = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, amt);
+            ps.setString(2, playerUuid);
+            ps.executeUpdate();
         } catch (SQLException e) {
-            plugin.getLogger().severe("Error updating " + coinType + " for player uuid: " + playerUuid + " - " + e.getMessage());
+            plugin.getLogger().severe("Failed to update " + coinType + " (SQLite) for " + playerUuid + ": " + e.getMessage());
         }
     }
 }
