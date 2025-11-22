@@ -78,4 +78,33 @@ public interface IMCEngineEconomyDB {
      * @param amount     amount to subtract
      */
     void minusCoin(String playerUuid, String coinType, int amount);
+
+    /**
+     * Transfer default coin from one player to another.
+     *
+     * This operation should be performed atomically by the implementation:
+     * - validate amount > 0
+     * - ensure sender has sufficient balance
+     * - create receiver row if missing (or upsert)
+     * - subtract from sender and add to receiver in a single transaction
+     *
+     * @param senderUuid   UUID string of the sender
+     * @param receiverUuid UUID string of the receiver
+     * @param amount       amount of default "coin" to transfer (positive)
+     */
+    void sendCoin(String senderUuid, String receiverUuid, int amount);
+
+    /**
+     * Transfer a specific coin type from one player to another.
+     *
+     * Same atomic and validation contract as {@link #sendCoin(String, String, int)},
+     * but applies to the specified coin column (coinType must be one of
+     * "coin", "copper", "silver", "gold").
+     *
+     * @param senderUuid   UUID string of the sender
+     * @param receiverUuid UUID string of the receiver
+     * @param coinType     coin column name ("coin", "copper", "silver", "gold")
+     * @param amount       amount to transfer (positive)
+     */
+    void sendCoin(String senderUuid, String receiverUuid, String coinType, int amount);
 }

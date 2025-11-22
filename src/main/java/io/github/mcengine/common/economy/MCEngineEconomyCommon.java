@@ -147,6 +147,56 @@ public class MCEngineEconomyCommon {
     }
 
     /**
+     * Transfers default "coin" from one player to another.
+     *
+     * Delegates to the selected {@link IMCEngineEconomyDB} implementation which
+     * must perform this operation atomically.
+     *
+     * @param senderUuid   UUID of the sender
+     * @param receiverUuid UUID of the receiver
+     * @param amount       amount to transfer (must be > 0)
+     */
+    public void sendCoin(UUID senderUuid, UUID receiverUuid, int amount) {
+        if (senderUuid == null || receiverUuid == null) {
+            plugin.getLogger().severe("sendCoin: sender or receiver UUID is null");
+            return;
+        }
+        if (amount <= 0) {
+            plugin.getLogger().severe("sendCoin: amount must be positive");
+            return;
+        }
+        db.sendCoin(senderUuid.toString(), receiverUuid.toString(), amount);
+    }
+
+    /**
+     * Transfers a specific coin type from one player to another.
+     *
+     * Delegates to the selected {@link IMCEngineEconomyDB} implementation which
+     * must perform this operation atomically. Valid coinType values: "coin",
+     * "copper", "silver", "gold".
+     *
+     * @param senderUuid   UUID of the sender
+     * @param receiverUuid UUID of the receiver
+     * @param coinType     coin column name to transfer ("coin","copper","silver","gold")
+     * @param amount       amount to transfer (must be > 0)
+     */
+    public void sendCoin(UUID senderUuid, UUID receiverUuid, String coinType, int amount) {
+        if (senderUuid == null || receiverUuid == null) {
+            plugin.getLogger().severe("sendCoin: sender or receiver UUID is null");
+            return;
+        }
+        if (amount <= 0) {
+            plugin.getLogger().severe("sendCoin: amount must be positive");
+            return;
+        }
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
+            plugin.getLogger().severe("sendCoin: invalid coin type: " + coinType);
+            return;
+        }
+        db.sendCoin(senderUuid.toString(), receiverUuid.toString(), coinType.toLowerCase(), amount);
+    }
+
+    /**
      * Checks whether a player has an economy entry.
      *
      * @param uuid player UUID

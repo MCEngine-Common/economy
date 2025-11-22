@@ -228,6 +228,93 @@ public class MCEngineEconomySQLite implements IMCEngineEconomyDB {
     }
 
     /**
+     * {@inheritDoc}
+     *
+     * SQLite implementation: uses a transaction to atomically move default "coin".
+     */
+    @Override
+    public void sendCoin(String senderUuid, String receiverUuid, int amount) {
+        sendCoin(senderUuid, receiverUuid, "coin", amount);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * SQLite implementation: performs an atomic transfer of the specified coin column.
+     */
+    @Override
+    public void sendCoin(String senderUuid, String receiverUuid, String coinType, int amount) {
+        if (connection == null) return;
+        if (amount <= 0) {
+            plugin.getLogger().severe("sendCoin: amount must be positive.");
+            return;
+        }
+        if (coinType == null || !coinType.matches("coin|copper|silver|gold")) {
+            plugin.getLogger().severe("sendCoin: invalid coin type: " + coinType);
+            return;
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            // Ensure sender exists and lock by selecting within transaction (SQLite locks DB page)
+            final String selectSql = "SELECT " + coinType + " FROM economy WHERE player_uuid = ? LIMIT 1";
+            int senderBalance = 0;
+            try (PreparedStatement ps = connection.prepareStatement(selectSql)) {
+                ps.setString(1, senderUuid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        senderBalance = rs.getInt(1);
+                    } else {
+                        // sender has no row -> cannot send
+                        plugin.getLogger().severe("sendCoin: sender does not have an economy row: " + senderUuid);
+                        connection.rollback();
+                        connection.setAutoCommit(true);
+                        return;
+                    }
+                }
+            }
+
+            if (senderBalance < amount) {
+                plugin.getLogger().severe("sendCoin: insufficient funds for " + senderUuid + " (" + senderBalance + " < " + amount + ")"); 
+                connection.rollback();
+                connection.setAutoCommit(true);
+                return;
+            }
+
+            // Ensure receiver exists; insert default row if missing
+            final String insertIfMissing = "INSERT OR IGNORE INTO economy(player_uuid, coin, copper, silver, gold) VALUES(?,0,0,0,0)";
+            try (PreparedStatement ps = connection.prepareStatement(insertIfMissing)) {
+                ps.setString(1, receiverUuid);
+                ps.executeUpdate();
+            }
+
+            // Perform updates
+            final String decSql = "UPDATE economy SET " + coinType + " = " + coinType + " - ? WHERE player_uuid = ?";
+            final String incSql = "UPDATE economy SET " + coinType + " = " + coinType + " + ? WHERE player_uuid = ?";
+
+            try (PreparedStatement dec = connection.prepareStatement(decSql);
+                 PreparedStatement inc = connection.prepareStatement(incSql)) {
+
+                dec.setInt(1, amount);
+                dec.setString(2, senderUuid);
+                dec.executeUpdate();
+
+                inc.setInt(1, amount);
+                inc.setString(2, receiverUuid);
+                inc.executeUpdate();
+            }
+
+            connection.commit();
+            connection.setAutoCommit(true);
+            plugin.getLogger().info("sendCoin: transferred " + amount + " " + coinType + " from " + senderUuid + " to " + receiverUuid);
+        } catch (SQLException e) {
+            try { connection.rollback(); connection.setAutoCommit(true); } catch (SQLException ex) { /* ignore */ }
+            plugin.getLogger().severe("sendCoin (SQLite) failed: " + e.getMessage());
+        }
+    }
+
+    /**
      * Updates a numeric column by adding or subtracting an amount.
      *
      * @param playerUuid player UUID string
